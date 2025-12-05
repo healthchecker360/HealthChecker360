@@ -1,31 +1,14 @@
-# Frontend
 streamlit
-
-# Data handling
 pandas
 numpy
-
-# RAG & vector search
 faiss-cpu
 sentence-transformers
-
-# PDF handling
 fpdf
 PyPDF2
-
-# Text-to-Speech
-gtts
+gTTS
 playsound
-
-# Image handling (for Chat/Diagnosis module)
 Pillow
 opencv-python
-
-# API requests
 requests
-
-# Optional: LLM clients
 openai
-
-# Utility
 python-dotenv
