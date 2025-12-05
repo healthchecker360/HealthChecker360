@@ -1,7 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# ------------------------------
+# Load environment variables
+# ------------------------------
 load_dotenv()
 
 # ------------------------------
@@ -30,4 +32,4 @@ TOP_K = int(os.getenv("TOP_K", 5))  # Number of top relevant chunks to retrieve
 # PDF & Vector Store Paths
 # ------------------------------
 PDF_FOLDER = os.getenv("PDF_FOLDER", "pdfs/")
-VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vector_store/faiss_index")
+VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vector_store/")
