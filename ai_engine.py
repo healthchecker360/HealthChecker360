@@ -1,59 +1,51 @@
 import requests
-from config import GEMINI_API_KEY, GEMINI_API_URL, GROQ_API_KEY, GROQ_API_URL, TTS_LANG, VECTOR_STORE_PATH, TOP_K
+from config import GEMINI_API_KEY, GEMINI_API_URL, GROQ_API_KEY, GROQ_API_URL, TTS_LANG, TOP_K
 from rag_engine import retrieve_relevant_chunks
 from gtts import gTTS
 from fpdf import FPDF
 import os
+import streamlit as st
 
 # ------------------------------
 # Helper: LLM call to Gemini
 # ------------------------------
 def query_gemini(prompt):
-    headers = {
-        "Authorization": f"Bearer {GEMINI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "prompt": prompt,
-        "max_tokens": 300  # limit response to concise clinical info
-    }
-    response = requests.post(f"{GEMINI_API_URL}completions", json=payload, headers=headers)
-    if response.status_code == 200:
+    try:
+        headers = {
+            "Authorization": f"Bearer {GEMINI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {"prompt": prompt, "max_tokens": 300}
+        response = requests.post(f"{GEMINI_API_URL}completions", json=payload, headers=headers)
+        response.raise_for_status()
         return response.json().get("choices", [{}])[0].get("text", "")
-    else:
-        return f"[ERROR] Gemini API: {response.status_code} - {response.text}"
-
+    except Exception as e:
+        return f"[ERROR] Gemini API: {str(e)}"
 
 # ------------------------------
 # Helper: LLM call to Groq
 # ------------------------------
 def query_groq(prompt):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "prompt": prompt,
-        "max_tokens": 300
-    }
-    response = requests.post(f"{GROQ_API_URL}completions", json=payload, headers=headers)
-    if response.status_code == 200:
+    try:
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {"prompt": prompt, "max_tokens": 300}
+        response = requests.post(f"{GROQ_API_URL}completions", json=payload, headers=headers)
+        response.raise_for_status()
         return response.json().get("choices", [{}])[0].get("text", "")
-    else:
-        return f"[ERROR] Groq API: {response.status_code} - {response.text}"
-
+    except Exception as e:
+        return f"[ERROR] Groq API: {str(e)}"
 
 # ------------------------------
 # Generate Concise Clinical Answer
 # ------------------------------
 def generate_clinical_answer(query, engine="gemini", top_k=TOP_K):
-    """
-    Steps:
-    1. Retrieve top-k PDF chunks
-    2. Create prompt for LLM emphasizing concise clinical answer
-    3. Return text answer
-    """
     chunks = retrieve_relevant_chunks(query, top_k=top_k)
+    if not chunks:
+        return "[ERROR] No relevant context found in PDFs."
+
     context_text = "\n\n".join(chunks)
 
     prompt = f"""
@@ -74,45 +66,59 @@ Context:
         answer = query_gemini(prompt)
     else:
         answer = query_groq(prompt)
-    return answer.strip()
 
+    return answer.strip()
 
 # ------------------------------
 # Optional: Text-to-Speech
 # ------------------------------
 def text_to_speech(text, output_path="output.mp3"):
-    tts = gTTS(text=text, lang=TTS_LANG)
-    tts.save(output_path)
-    return output_path
-
+    try:
+        tts = gTTS(text=text, lang=TTS_LANG)
+        tts.save(output_path)
+        return output_path
+    except Exception as e:
+        return f"[ERROR] TTS failed: {str(e)}"
 
 # ------------------------------
 # Optional: PDF Generation
 # ------------------------------
 def text_to_pdf(text, output_path="output.pdf"):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
-    for line in text.split("\n"):
-        pdf.multi_cell(0, 7, line)
-    pdf.output(output_path)
-    return output_path
-
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Arial", size=12)
+        for line in text.split("\n"):
+            pdf.multi_cell(0, 7, line)
+        pdf.output(output_path)
+        return output_path
+    except Exception as e:
+        return f"[ERROR] PDF generation failed: {str(e)}"
 
 # ------------------------------
-# Example Usage
+# Streamlit helper
 # ------------------------------
-if __name__ == "__main__":
-    query = "Paracetamol adult dose and side effects"
-    answer = generate_clinical_answer(query, engine="gemini")
-    print("----- Clinical Answer -----")
-    print(answer)
+def handle_query(query, engine="gemini"):
+    with st.spinner("🔹 Generating clinical answer..."):
+        answer = generate_clinical_answer(query, engine)
+    st.success("✅ Clinical answer generated!")
+    st.text_area("Answer:", answer, height=300)
 
-    # Optional: generate TTS
-    tts_file = text_to_speech(answer)
-    print(f"TTS saved at: {tts_file}")
+    # TTS
+    if st.button("🔊 Play TTS"):
+        tts_file = text_to_speech(answer)
+        if tts_file.endswith(".mp3"):
+            audio_bytes = open(tts_file, "rb").read()
+            st.audio(audio_bytes, format="audio/mp3")
+        else:
+            st.error(tts_file)
 
-    # Optional: generate PDF
-    pdf_file = text_to_pdf(answer)
-    print(f"PDF saved at: {pdf_file}")
+    # PDF download
+    if st.button("📄 Download PDF"):
+        pdf_file = text_to_pdf(answer)
+        if pdf_file.endswith(".pdf"):
+            with open(pdf_file, "rb") as f:
+                st.download_button("Download PDF", f, file_name="clinical_answer.pdf")
+        else:
+            st.error(pdf_file)
