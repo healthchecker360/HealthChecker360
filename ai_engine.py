@@ -1,112 +1,118 @@
-# ai_engine.py
-import os
-import json
-from dotenv import load_dotenv
-import google.generativeai as genai
 import requests
-from rag_engine import query_rag
+from config import GEMINI_API_KEY, GEMINI_API_URL, GROQ_API_KEY, GROQ_API_URL, TTS_LANG, VECTOR_STORE_PATH, TOP_K
+from rag_engine import retrieve_relevant_chunks
 from gtts import gTTS
+from fpdf import FPDF
+import os
 
-load_dotenv()
+# ------------------------------
+# Helper: LLM call to Gemini
+# ------------------------------
+def query_gemini(prompt):
+    headers = {
+        "Authorization": f"Bearer {GEMINI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "prompt": prompt,
+        "max_tokens": 300  # limit response to concise clinical info
+    }
+    response = requests.post(f"{GEMINI_API_URL}completions", json=payload, headers=headers)
+    if response.status_code == 200:
+        return response.json().get("choices", [{}])[0].get("text", "")
+    else:
+        return f"[ERROR] Gemini API: {response.status_code} - {response.text}"
 
-# -------------------------
-# API KEYS
-# -------------------------
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Configure Gemini
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+# ------------------------------
+# Helper: LLM call to Groq
+# ------------------------------
+def query_groq(prompt):
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "prompt": prompt,
+        "max_tokens": 300
+    }
+    response = requests.post(f"{GROQ_API_URL}completions", json=payload, headers=headers)
+    if response.status_code == 200:
+        return response.json().get("choices", [{}])[0].get("text", "")
+    else:
+        return f"[ERROR] Groq API: {response.status_code} - {response.text}"
 
-# -------------------------
-# System prompts
-# -------------------------
-SYSTEM_PROMPT_PATIENT = """
-You are Health Checker 365.
-Answer the question in simple, clear language for a patient.
-Include key info, treatment, warnings, and common side effects.
-Keep it short and professional.
+
+# ------------------------------
+# Generate Concise Clinical Answer
+# ------------------------------
+def generate_clinical_answer(query, engine="gemini", top_k=TOP_K):
+    """
+    Steps:
+    1. Retrieve top-k PDF chunks
+    2. Create prompt for LLM emphasizing concise clinical answer
+    3. Return text answer
+    """
+    chunks = retrieve_relevant_chunks(query, top_k=top_k)
+    context_text = "\n\n".join(chunks)
+
+    prompt = f"""
+You are a professional clinical assistant. Provide a concise, targeted, evidence-based clinical answer to the following query using the context below. 
+- Only include essential information. 
+- If it's about drugs, include: Dose, MOA, Warnings, Side effects, Formulations. 
+- If it's labs: include interpretation and next steps. 
+- If calculations: include result and brief explanation.
+- Do not add extra information.
+
+Query: {query}
+
+Context:
+{context_text}
 """
 
-SYSTEM_PROMPT_PROFESSIONAL = """
-You are Health Checker 365.
-Answer the question in professional clinical language for healthcare professionals.
-Include diagnosis, treatment options, mechanism, warnings, and references.
-Keep it concise and targeted.
-"""
-
-# -------------------------
-# Helper: Call Gemini
-# -------------------------
-def call_gemini(prompt, image=None):
-    if not GEMINI_API_KEY:
-        return "⚠️ Gemini API key missing."
-    try:
-        model_name = "gemini-1.5-flash"
-        model = genai.GenerativeModel(model_name)
-        if image:
-            response = model.generate_content([prompt, image])
-        else:
-            response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"⚠️ Gemini error: {str(e)}"
-
-# -------------------------
-# Helper: Call Groq (example)
-# -------------------------
-def call_groq(prompt):
-    if not GROQ_API_KEY:
-        return "⚠️ Groq API key missing."
-    try:
-        # Example Groq API call (replace with your endpoint)
-        url = "https://api.groq.ai/generate"
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-        payload = {"prompt": prompt, "max_tokens": 300}
-        resp = requests.post(url, headers=headers, json=payload)
-        if resp.status_code == 200:
-            return resp.json().get("text", "")
-        else:
-            return f"⚠️ Groq error {resp.status_code}: {resp.text}"
-    except Exception as e:
-        return f"⚠️ Groq exception: {str(e)}"
-
-# -------------------------
-# Generate TTS (optional)
-# -------------------------
-def generate_tts(text, filename="answer.mp3"):
-    tts = gTTS(text)
-    tts.save(filename)
-    return filename
-
-# -------------------------
-# Main function: RAG + LLM
-# -------------------------
-def get_rag_answer(query, audience="patient", top_k=3, llm="gemini"):
-    """
-    query: user question
-    audience: 'patient' or 'professional'
-    top_k: number of RAG chunks to retrieve
-    llm: 'gemini' or 'groq'
-    """
-
-    # Step 1: Retrieve relevant context
-    context_chunks = query_rag(query, top_k=top_k)
-    context_text = " ".join([c["text"] for c in context_chunks]) if context_chunks else ""
-
-    # Step 2: Prepare prompt with context
-    if audience.lower() == "patient":
-        system_prompt = SYSTEM_PROMPT_PATIENT
+    if engine.lower() == "gemini":
+        answer = query_gemini(prompt)
     else:
-        system_prompt = SYSTEM_PROMPT_PROFESSIONAL
+        answer = query_groq(prompt)
+    return answer.strip()
 
-    full_prompt = f"{system_prompt}\nContext: {context_text}\nQuestion: {query}"
 
-    # Step 3: Call selected LLM
-    if llm.lower() == "gemini":
-        answer = call_gemini(full_prompt)
-    else:
-        answer = call_groq(full_prompt)
+# ------------------------------
+# Optional: Text-to-Speech
+# ------------------------------
+def text_to_speech(text, output_path="output.mp3"):
+    tts = gTTS(text=text, lang=TTS_LANG)
+    tts.save(output_path)
+    return output_path
 
-    return answer
+
+# ------------------------------
+# Optional: PDF Generation
+# ------------------------------
+def text_to_pdf(text, output_path="output.pdf"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+    for line in text.split("\n"):
+        pdf.multi_cell(0, 7, line)
+    pdf.output(output_path)
+    return output_path
+
+
+# ------------------------------
+# Example Usage
+# ------------------------------
+if __name__ == "__main__":
+    query = "Paracetamol adult dose and side effects"
+    answer = generate_clinical_answer(query, engine="gemini")
+    print("----- Clinical Answer -----")
+    print(answer)
+
+    # Optional: generate TTS
+    tts_file = text_to_speech(answer)
+    print(f"TTS saved at: {tts_file}")
+
+    # Optional: generate PDF
+    pdf_file = text_to_pdf(answer)
+    print(f"PDF saved at: {pdf_file}")
