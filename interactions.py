@@ -1,57 +1,56 @@
-# interactions.py
 import streamlit as st
-from ai_engine import get_rag_answer, generate_tts
+from ai_engine import generate_clinical_answer, text_to_speech, text_to_pdf
+from PIL import Image
+import io
 
-# -------------------------
-# Session State Initialization
-# -------------------------
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
+# ------------------------------
+# Chat & Diagnosis Module
+# ------------------------------
+def chat_diagnosis_module():
+    st.header("💬 Chat & Diagnosis Module")
 
-if "audience_mode" not in st.session_state:
-    st.session_state.audience_mode = "patient"  # default
+    # Input selection
+    input_type = st.radio("Select Input Type:", ["Text", "Voice", "Image"])
 
-# -------------------------
-# Function to handle a new message
-# -------------------------
-def handle_user_message(user_msg, audience="patient", llm="gemini", tts=False):
-    """
-    user_msg: user input
-    audience: 'patient' or 'professional'
-    llm: 'gemini' or 'groq'
-    tts: whether to generate voice output
-    """
-    if not user_msg.strip():
-        return
+    user_query = None
+    uploaded_image = None
 
-    # Step 1: Get AI answer
-    answer = get_rag_answer(user_msg, audience=audience, llm=llm)
+    # --- Text input ---
+    if input_type == "Text":
+        user_query = st.text_area("Enter your query:", height=100)
 
-    # Step 2: Append to chat history
-    st.session_state.chat_history.append({
-        "role": "user",
-        "content": user_msg
-    })
-    st.session_state.chat_history.append({
-        "role": "assistant",
-        "content": answer
-    })
+    # --- Voice input (basic) ---
+    elif input_type == "Voice":
+        st.info("Voice input: currently only upload a recorded audio file (mp3/wav).")
+        audio_file = st.file_uploader("Upload audio file", type=["mp3", "wav"])
+        if audio_file is not None:
+            # For now, we can save and convert audio to text later using Whisper / Gemini STT
+            st.success("Voice uploaded! (STT not implemented yet)")
+            user_query = "Transcribed text from audio here"  # Placeholder
 
-    # Step 3: Optional: generate voice
-    if tts:
-        audio_file = generate_tts(answer)
-        return answer, audio_file
-    else:
-        return answer, None
+    # --- Image input ---
+    elif input_type == "Image":
+        uploaded_image = st.file_uploader("Upload image for analysis", type=["jpg", "png", "jpeg"])
+        if uploaded_image is not None:
+            image = Image.open(uploaded_image)
+            st.image(image, caption="Uploaded Image", use_column_width=True)
+            # Placeholder for image analysis
+            user_query = "Analyzing uploaded image..."  # Placeholder
 
-# -------------------------
-# Function to display chat
-# -------------------------
-def display_chat():
-    for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            with st.chat_message("user"):
-                st.markdown(msg["content"])
-        else:
-            with st.chat_message("assistant"):
-                st.markdown(msg["content"])
+    # Submit button
+    if st.button("Get Clinical Answer") and user_query:
+        with st.spinner("Fetching concise clinical answer..."):
+            answer = generate_clinical_answer(user_query, engine="gemini")
+
+        # Display answer
+        st.subheader("✅ Clinical Answer")
+        st.text_area("Answer", value=answer, height=250)
+
+        # Optional: Text-to-Speech
+        tts_file = text_to_speech(answer)
+        st.audio(tts_file, format="audio/mp3")
+
+        # Optional: PDF download
+        pdf_file = text_to_pdf(answer)
+        with open(pdf_file, "rb") as f:
+            st.download_button("Download PDF", f, file_name="clinical_answer.pdf", mime="application/pdf")
