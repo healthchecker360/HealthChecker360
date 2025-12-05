@@ -1,0 +1,33 @@
+# Web / UI
+streamlit
+streamlit-audio-recorder
+
+# AI providers & HTTP
+google-generativeai
+requests
+python-dotenv
+
+# RAG / embeddings / vector DB
+faiss-cpu>=1.7.4.post2
+sentence-transformers
+torch
+
+# PDF ingestion + processing
+pdfplumber
+pypdfium2
+
+# Data & utils
+numpy
+pandas
+tqdm
+Pillow
+
+# Text-to-speech and audio
+gTTS
+soundfile
+
+# Report / PDF generation
+fpdf
+
+# Optional (local embedding fallback / transformer models)
+transformers
