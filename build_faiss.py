@@ -2,19 +2,18 @@ import os
 from PyPDF2 import PdfReader
 from sentence_transformers import SentenceTransformer
 import faiss
-import numpy as np
 import pickle
 
 # ------------------------------
 # Folders
 # ------------------------------
-PDF_FOLDER = "pdfs"          # PDFs for ingestion
-VECTOR_FOLDER = "vector_store"  # FAISS index storage
+PDF_FOLDER = "pdfs"          # Folder containing PDFs for ingestion
+VECTOR_FOLDER = "vector_store"  # Folder to store FAISS index and texts
 
 # ------------------------------
 # Load embedding model
 # ------------------------------
-MODEL_NAME = "all-MiniLM-L6-v2"  # You can change to any sentence-transformers model
+MODEL_NAME = "all-MiniLM-L6-v2"  # Lightweight sentence-transformers model
 model = SentenceTransformer(MODEL_NAME)
 
 # ------------------------------
@@ -38,7 +37,7 @@ if len(texts) == 0:
 # ------------------------------
 # Generate embeddings
 # ------------------------------
-print("🔹 Generating embeddings...")
+print("🔹 Generating embeddings from PDFs...")
 embeddings = model.encode(texts, convert_to_numpy=True)
 
 # ------------------------------
