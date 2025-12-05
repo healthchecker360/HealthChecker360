@@ -1,33 +1,31 @@
-# Web / UI
+# Frontend
 streamlit
-streamlit-audio-recorder
 
-# AI providers & HTTP
-google-generativeai
-requests
-python-dotenv
+# Data handling
+pandas
+numpy
 
-# RAG / embeddings / vector DB
+# RAG & vector search
 faiss-cpu
 sentence-transformers
-torch
 
-# PDF ingestion + processing
-pdfplumber
-pypdfium2
-
-# Data & utils
-numpy
-pandas
-tqdm
-Pillow
-
-# Text-to-speech and audio
-gTTS
-soundfile
-
-# Report / PDF generation
+# PDF handling
 fpdf
+PyPDF2
 
-# Optional (local embedding fallback / transformer models)
-transformers
+# Text-to-Speech
+gtts
+playsound
+
+# Image handling (for Chat/Diagnosis module)
+Pillow
+opencv-python
+
+# API requests
+requests
+
+# Optional: LLM clients
+openai
+
+# Utility
+python-dotenv
