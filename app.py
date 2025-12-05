@@ -1,6 +1,5 @@
 import streamlit as st
 from PIL import Image
-from io import BytesIO
 import os
 
 # Import our modules
