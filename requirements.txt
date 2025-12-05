@@ -1,7 +1,7 @@
 streamlit
 pandas
 numpy
-faiss-cpu
+faiss-cpu==1.7.4
 sentence-transformers
 fpdf
 PyPDF2
