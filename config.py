@@ -1,28 +1,33 @@
+from pathlib import Path
 import os
 
-# ==============================
-# BASE PATHS
-# ==============================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # Project base directory
-VECTOR_STORE_PATH = os.path.join(BASE_DIR, "vector_store")  # Path to store FAISS index & chunks
-DOCS_PATH = os.path.join(BASE_DIR, "docs")  # Folder containing all medical guideline files
+# ------------------------------
+# FOLDER PATHS
+# ------------------------------
+DOCS_FOLDER = Path("docs")              # Your PDF/TXT/DOCX guidelines
+VECTOR_FOLDER = Path("vector_store")    # FAISS vector index & chunks
 
-# ==============================
-# MODEL CONFIGURATION
-# ==============================
-SENTENCE_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # Sentence Transformer model
+# FAISS files
+CHUNKS_FILE = VECTOR_FOLDER / "chunks.pkl"
+FAISS_INDEX_FILE = VECTOR_FOLDER / "faiss_index.bin"
 
-# ==============================
-# RAG PARAMETERS
-# ==============================
-CHUNK_SIZE = 500  # Number of characters per chunk
-TOP_K = 5  # Number of relevant chunks to retrieve for a query
+# ------------------------------
+# DRUG DATABASE
+# ------------------------------
+DRUG_DB_PATH = DOCS_FOLDER / "drug_database.csv"
 
-# ==============================
-# OTHER SETTINGS
-# ==============================
-SUPPORTED_DOCS = [".pdf", ".txt", ".docx"]  # Supported document types for ingestion
+# ------------------------------
+# GENAI / GEMINI / GROQ API CONFIG
+# ------------------------------
+# Store API keys in .env file
+GENAI_API_KEY = os.getenv("GENAI_API_KEY")       # Your Gemni / GenAI API Key
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")         # Your Groq API Key
 
-# Ensure folders exist
-os.makedirs(VECTOR_STORE_PATH, exist_ok=True)
-os.makedirs(DOCS_PATH, exist_ok=True)
+# Base URLs (example)
+GENAI_API_URL = "https://api.genai.com/v1/query"
+GROQ_API_URL = "https://api.groq.com/v1/query"
+
+# ------------------------------
+# RAG / Search Settings
+# ------------------------------
+TOP_K_CHUNKS = 5  # Number of chunks to retrieve from FAISS
