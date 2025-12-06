@@ -66,6 +66,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ------------------------------
+# Sidebar Navigation
+# ------------------------------
+st.sidebar.title("HealthChecker360")
+
+menu = st.sidebar.radio(
+    "Navigate",
+    ["Home", "Drug Info", "Lab Interpretation", "Calculators"]
+)
 
 # ------------------------------
 # Home — Diagnosis Module
@@ -75,12 +84,13 @@ if menu == "Home":
 
     st.write(
         """
-        Quickly analyze medical symptoms, diseases, and clinical queries.
+        Quickly analyze symptoms, diseases, and clinical queries.
+        
         The system uses:
         - Local medical database (FAISS + embeddings)
         - Online medical LLMs (Gemini / Groq)
         
-        **Choose your input type and begin.**
+        **Enter your symptoms or condition below.**
         """
     )
 
@@ -96,7 +106,7 @@ elif menu == "Drug Info":
 
     if st.button("Get Drug Info") and drug_name.strip():
         result = drug_module_ui(drug_name)
-        st.markdown(result)
+        st.markdown(result, unsafe_allow_html=True)
 
 # ------------------------------
 # Lab Interpretation Module
