@@ -1,49 +1,45 @@
 import streamlit as st
+import pandas as pd
+from pathlib import Path
 
-# ==============================
-# SAMPLE DRUG DATABASE
-# ==============================
-# For demonstration, using a simple dictionary. 
-# You can replace this with a CSV, JSON, or real database later.
-DRUG_DB = {
-    "Paracetamol": {
-        "MOA": "Inhibits prostaglandin synthesis in CNS and blocks pain impulses peripherally.",
-        "Indications": ["Fever", "Mild to moderate pain"],
-        "Doses": {"Adult": "500-1000mg every 6-8 hours", "Child": "10-15mg/kg every 6-8 hours"},
-        "Side Effects": ["Nausea", "Allergic reactions", "Hepatotoxicity in overdose"],
-        "Warnings": ["Liver disease", "Alcohol use caution"],
-        "Formulations": ["Tablet", "Syrup", "IV injection"]
-    },
-    "Ibuprofen": {
-        "MOA": "Nonsteroidal anti-inflammatory drug (NSAID) that inhibits COX-1 and COX-2 enzymes.",
-        "Indications": ["Pain", "Inflammation", "Fever"],
-        "Doses": {"Adult": "200-400mg every 6-8 hours", "Child": "5-10mg/kg every 6-8 hours"},
-        "Side Effects": ["GI upset", "Renal impairment", "Bleeding risk"],
-        "Warnings": ["Peptic ulcer", "Renal disease", "Pregnancy caution"],
-        "Formulations": ["Tablet", "Suspension", "IV injection"]
-    }
-}
+# ------------------------------
+# CONFIG
+# ------------------------------
+DRUG_DB_PATH = Path("docs/drug_database.csv")  # Example CSV file with drug info
 
-# ==============================
+# ------------------------------
+# LOAD DRUG DATA
+# ------------------------------
+def load_drug_data():
+    if DRUG_DB_PATH.exists():
+        df = pd.read_csv(DRUG_DB_PATH)
+        return df
+    else:
+        st.warning("Drug database not found. Please place 'drug_database.csv' in docs folder.")
+        return pd.DataFrame()  # Empty DataFrame
+
+# ------------------------------
 # DRUG MODULE UI
-# ==============================
+# ------------------------------
 def drug_module_ui():
-    st.title("Drug Information Module")
-    st.write("Search for drug information including MOA, doses, side effects, warnings, and formulations.")
+    st.title("HealthChecker360 - Drug Module")
+    st.write("Search for drug information including MOA, dosage, side effects, and interactions.")
 
-    drug_name = st.text_input("Enter drug name", placeholder="e.g., Paracetamol")
+    df = load_drug_data()
+    if df.empty:
+        return
 
-    if st.button("Search") and drug_name:
-        drug_info = DRUG_DB.get(drug_name.title())
-        if drug_info:
-            st.subheader(f"Drug: {drug_name.title()}")
-            st.markdown(f"**Mechanism of Action (MOA):** {drug_info['MOA']}")
-            st.markdown(f"**Indications:** {', '.join(drug_info['Indications'])}")
-            st.markdown("**Doses:**")
-            for key, dose in drug_info["Doses"].items():
-                st.write(f"- {key}: {dose}")
-            st.markdown(f"**Side Effects:** {', '.join(drug_info['Side Effects'])}")
-            st.markdown(f"**Warnings:** {', '.join(drug_info['Warnings'])}")
-            st.markdown(f"**Formulations:** {', '.join(drug_info['Formulations'])}")
-        else:
-            st.warning("Drug not found in database. Please check spelling or add to database.")
+    drug_list = df['Drug Name'].tolist()
+    selected_drug = st.selectbox("Select Drug", [""] + drug_list)
+
+    if selected_drug:
+        drug_info = df[df['Drug Name'] == selected_drug].iloc[0]
+
+        st.subheader(f"{selected_drug} Information")
+        st.markdown(f"**Mechanism of Action (MOA):** {drug_info.get('MOA', 'N/A')}")
+        st.markdown(f"**Indications:** {drug_info.get('Indications', 'N/A')}")
+        st.markdown(f"**Dosage:** {drug_info.get('Dosage', 'N/A')}")
+        st.markdown(f"**Side Effects:** {drug_info.get('Side Effects', 'N/A')}")
+        st.markdown(f"**Warnings / Precautions:** {drug_info.get('Warnings', 'N/A')}")
+        st.markdown(f"**Drug Interactions:** {drug_info.get('Interactions', 'N/A')}")
+        st.markdown(f"**Brand Names:** {drug_info.get('Brand Names', 'N/A')}")
