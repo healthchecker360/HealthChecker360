@@ -9,10 +9,9 @@ from PyPDF2 import PdfReader
 import speech_recognition as sr
 
 # -----------------------------------------------------------
-#               CLINICAL DIAGNOSIS MODULE (FINAL)
+#               CLINICAL DIAGNOSIS MODULE
 # -----------------------------------------------------------
 def chat_diagnosis_module():
-    st.set_page_config(page_title="🩺 HealthChecker360", layout="wide")
     st.title("🩺 HealthChecker360 - Clinical Diagnosis Assistant")
 
     # -----------------------------
@@ -37,7 +36,6 @@ def chat_diagnosis_module():
     elif input_type == "Voice":
         st.info("Upload a short MP3/WAV recording describing symptoms.")
         audio_file = st.file_uploader("Upload Voice File:", type=["mp3", "wav"])
-
         if audio_file:
             try:
                 recognizer = sr.Recognizer()
@@ -50,7 +48,6 @@ def chat_diagnosis_module():
 
                 user_query = recognizer.recognize_google(audio_data)
                 st.success(f"Transcribed Text: {user_query}")
-
             except Exception:
                 st.error("Unable to recognize speech. Please try again.")
 
@@ -62,7 +59,6 @@ def chat_diagnosis_module():
             "Upload medical document (PDF, TXT, DOCX):",
             type=["pdf", "txt", "docx"]
         )
-
         if uploaded_file:
             text_content = ""
 
@@ -77,49 +73,52 @@ def chat_diagnosis_module():
                 text_content = uploaded_file.read().decode("utf-8")
 
             # ---- DOCX ----
-            elif uploaded_file.type == \
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 doc = docx.Document(uploaded_file)
                 text_content = "\n".join([p.text for p in doc.paragraphs])
 
             user_query = text_content
             st.success("File processed successfully.")
 
-           # Process query
-        if st.button("Get Clinical Answer") and user_query:
-            with st.spinner("Analyzing symptoms and searching medical knowledge..."):
+    # -----------------------------
+    # Submit Query Button
+    # -----------------------------
+    submit_query = st.button("Get Clinical Answer")
 
-                # Retrieve RAG chunks
-                retrieved_context = retrieve_relevant_chunks(user_query)
+    if submit_query and user_query.strip():
+        with st.spinner("Analyzing symptoms and generating professional medical answer..."):
 
-                # Generate final answer (RAG + LLM fallback)
-                answer = generate_clinical_answer(
-                    user_query=user_query,
-                    retrieved_context=retrieved_context
-                )
+            # Retrieve local FAISS chunks
+            retrieved_context = retrieve_relevant_chunks(user_query)
 
-        # Display Result
+            # Generate final answer using RAG + LLM fallback
+            answer = generate_clinical_answer(
+                user_query=user_query,
+                retrieved_context=retrieved_context
+            )
+
+        # -----------------------------
+        # Display Answer
+        # -----------------------------
         st.subheader("✅ Clinical Answer")
         st.markdown(answer.replace("\n", "  \n- "), unsafe_allow_html=True)
 
-        # Optional Outputs
+        # -----------------------------
+        # Optional Outputs: PDF / Audio
+        # -----------------------------
         col1, col2 = st.columns(2)
 
-        # PDF
+        # PDF Download
         with col1:
-            if st.button("Download as PDF"):
-                pdf_file = text_to_pdf(answer)
-                with open(pdf_file, "rb") as f:
-                    st.download_button(
-                        label="Download PDF",
-                        data=f.read(),
-                        file_name="clinical_answer.pdf",
-                        mime="application/pdf"
-                    )
+            pdf_file = text_to_pdf(answer)
+            st.download_button(
+                label="📄 Download PDF",
+                data=open(pdf_file, "rb").read(),
+                file_name="clinical_answer.pdf",
+                mime="application/pdf"
+            )
 
         # TTS Audio
         with col2:
-            if st.button("Play as Voice"):
-                tts_file = text_to_speech(answer)
-                st.audio(tts_file, format="audio/mp3")
-
+            tts_file = text_to_speech(answer)
+            st.audio(tts_file, format="audio/mp3")
