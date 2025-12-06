@@ -1,4 +1,3 @@
-# modules/ai_engine.py
 import os
 import pickle
 from pathlib import Path
@@ -8,9 +7,7 @@ import requests
 from config import VECTOR_PATH, TEMP_PATH, TOP_K, DEBUG, GOOGLE_API_KEY, GROQ_API_KEY
 from modules.rag_engine import retrieve_relevant_chunks
 
-# ------------------------------
-# PDF generation
-# ------------------------------
+# ------------------------------ PDF generation ------------------------------
 def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf_file = TEMP_PATH / filename
     pdf = FPDF()
@@ -21,18 +18,14 @@ def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf.output(str(pdf_file))
     return str(pdf_file)
 
-# ------------------------------
-# Audio generation
-# ------------------------------
+# ------------------------------ Audio generation ------------------------------
 def text_to_speech(text: str, filename: str = "output.mp3") -> str:
     audio_file = TEMP_PATH / filename
     tts = gTTS(text=text, lang="en")
     tts.save(str(audio_file))
     return str(audio_file)
 
-# ------------------------------
-# Online AI: Gemini
-# ------------------------------
+# ------------------------------ Gemini API ------------------------------
 def query_gemini(query: str) -> str:
     if not GOOGLE_API_KEY:
         if DEBUG:
@@ -51,9 +44,7 @@ def query_gemini(query: str) -> str:
             print(f"[DEBUG] Gemini API error: {e}")
         return ""
 
-# ------------------------------
-# Online AI: Groq (optional fallback)
-# ------------------------------
+# ------------------------------ Groq API ------------------------------
 def query_groq(query: str) -> str:
     if not GROQ_API_KEY:
         if DEBUG:
@@ -72,40 +63,33 @@ def query_groq(query: str) -> str:
             print(f"[DEBUG] Groq API error: {e}")
         return ""
 
-# ------------------------------
-# Main clinical answer function
-# ------------------------------
+# ------------------------------ Main clinical answer ------------------------------
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
-    """
-    Returns professional medical answer:
-    1. Tries local FAISS vector store first.
-    2. Falls back to Gemini API.
-    3. Optional: fallback to Groq API if Gemini fails.
-    """
     answer = ""
 
-    # Step 1: Local FAISS retrieval
+    # Step 1: Try local FAISS
     try:
-        faiss_index_file = VECTOR_PATH / "faiss_index.bin"
-        chunks_file = VECTOR_PATH / "chunks.pkl"
-        if faiss_index_file.exists() and chunks_file.exists():
-            chunks = retrieve_relevant_chunks(query, top_k=top_k)
-            if chunks:
-                answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
+        chunks = retrieve_relevant_chunks(query, top_k=top_k)
+        if chunks:
+            answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
     except Exception as e:
         if DEBUG:
             print(f"[DEBUG] FAISS retrieval skipped: {e}")
 
-    # Step 2: Online Gemini fallback
+    # Step 2: Gemini API fallback
     if not answer.strip():
         answer = query_gemini(query)
+        if DEBUG:
+            print("[DEBUG] Using Gemini API fallback")
 
-    # Step 3: Groq fallback (if still empty)
+    # Step 3: Groq API fallback
     if not answer.strip():
         answer = query_groq(query)
+        if DEBUG:
+            print("[DEBUG] Using Groq API fallback")
 
     # Step 4: Final fallback
     if not answer.strip():
-        answer = "No answer found locally or online. Please consult a healthcare professional."
+        answer = "⚠️ No answer found locally or online. Please consult a healthcare professional."
 
     return answer
