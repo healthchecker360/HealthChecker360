@@ -1,24 +1,16 @@
 import os
 import pickle
+from pathlib import Path
+
 import faiss
 from sentence_transformers import SentenceTransformer
-from pathlib import Path
 from PyPDF2 import PdfReader
 import docx
-import numpy as np
+
+from config import DOCS_PATH, VECTOR_PATH, FAISS_INDEX_PATH, CHUNKS_FILE_PATH, CHUNK_SIZE, CHUNK_OVERLAP, DEBUG
 
 # ------------------------------
-# PATHS
-# ------------------------------
-DOCS_PATH = Path("docs")
-VECTOR_PATH = Path("vector_store")
-VECTOR_PATH.mkdir(exist_ok=True)
-
-CHUNKS_FILE = VECTOR_PATH / "chunks.pkl"
-INDEX_FILE = VECTOR_PATH / "faiss_index.bin"
-
-# ------------------------------
-# LOAD DOCUMENTS
+# Load documents from pdf, txt, docx
 # ------------------------------
 def load_documents():
     documents = []
@@ -26,26 +18,34 @@ def load_documents():
         try:
             if file.suffix.lower() == ".pdf":
                 reader = PdfReader(file)
-                text = "".join([page.extract_text() or "" for page in reader.pages])
-                documents.append(text)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() or ""
+                if text.strip():
+                    documents.append(text)
             elif file.suffix.lower() == ".txt":
                 with open(file, "r", encoding="utf-8") as f:
-                    documents.append(f.read())
+                    text = f.read()
+                    if text.strip():
+                        documents.append(text)
             elif file.suffix.lower() == ".docx":
                 doc = docx.Document(file)
-                text = "\n".join([para.text for para in doc.paragraphs])
-                documents.append(text)
+                text = "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+                if text.strip():
+                    documents.append(text)
         except Exception as e:
-            print(f"Error reading {file.name}: {e}")
+            if DEBUG:
+                print(f"Error reading {file.name}: {e}")
+    if DEBUG:
+        print(f"Loaded {len(documents)} documents from {DOCS_PATH}")
     return documents
 
 # ------------------------------
-# SPLIT INTO CHUNKS
+# Split text into chunks
 # ------------------------------
-def split_text(text, chunk_size=500, overlap=50):
+def split_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     chunks = []
     start = 0
-    text = text.replace("\n", " ").strip()
     while start < len(text):
         end = start + chunk_size
         chunk = text[start:end]
@@ -54,23 +54,20 @@ def split_text(text, chunk_size=500, overlap=50):
     return chunks
 
 # ------------------------------
-# BUILD FAISS INDEX
+# Build FAISS index
 # ------------------------------
 def build_faiss_index():
-    print("Loading documents...")
     documents = load_documents()
     all_chunks = []
-
     for doc in documents:
-        chunks = split_text(doc)
-        all_chunks.extend(chunks)
-
+        all_chunks.extend(split_text(doc))
+    
     if not all_chunks:
-        raise ValueError("No text chunks found in docs folder!")
+        print("No documents found to build FAISS index.")
+        return
 
-    print(f"Total chunks: {len(all_chunks)}")
-
-    # Create embeddings
+    # Embeddings
+    print("Generating embeddings...")
     model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = model.encode(all_chunks, show_progress_bar=True)
     embeddings = embeddings.astype("float32")
@@ -81,13 +78,14 @@ def build_faiss_index():
     index.add(embeddings)
 
     # Save index and chunks
-    with open(CHUNKS_FILE, "wb") as f:
+    faiss.write_index(index, str(FAISS_INDEX_PATH))
+    with open(CHUNKS_FILE_PATH, "wb") as f:
         pickle.dump(all_chunks, f)
-    faiss.write_index(index, str(INDEX_FILE))
-    print("FAISS index and chunks saved successfully.")
+    
+    print(f"FAISS index and chunks saved successfully! Total chunks: {len(all_chunks)}")
 
 # ------------------------------
-# RUN
+# Run
 # ------------------------------
 if __name__ == "__main__":
     build_faiss_index()
