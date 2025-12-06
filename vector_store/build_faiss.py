@@ -1,44 +1,72 @@
-# build_faiss.py
 import os
-from PyPDF2 import PdfReader
+import pickle
 from sentence_transformers import SentenceTransformer
 import faiss
-import numpy as np
-import pickle
 
-PDF_FOLDER = "pdfs"
+# ------------------------------
+# CONFIG
+# ------------------------------
 VECTOR_FOLDER = "vector_store"
-MODEL_NAME = "all-MiniLM-L6-v2"  # SentenceTransformer model
+DOCS_FOLDER = "docs"  # Put your .txt documents here
+CHUNK_SIZE = 500       # Characters per chunk
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-# Load embedding model
-model = SentenceTransformer(MODEL_NAME)
+os.makedirs(VECTOR_FOLDER, exist_ok=True)
 
-# Read all PDFs
-texts = []
-for file in os.listdir(PDF_FOLDER):
-    if file.endswith(".pdf"):
-        reader = PdfReader(os.path.join(PDF_FOLDER, file))
-        for page in reader.pages:
-            text = page.extract_text()
-            if text:
-                texts.append(text)
+# ------------------------------
+# Read .txt files
+# ------------------------------
+def read_txt_files(folder_path):
+    docs = []
+    for file in os.listdir(folder_path):
+        if file.endswith(".txt"):
+            with open(os.path.join(folder_path, file), "r", encoding="utf-8") as f:
+                docs.append(f.read())
+    return docs
 
-# Create embeddings
-embeddings = model.encode(texts, convert_to_numpy=True)
+# ------------------------------
+# Split text into chunks
+# ------------------------------
+def chunk_text(text, chunk_size=CHUNK_SIZE):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start = end
+    return chunks
 
+# ------------------------------
 # Build FAISS index
-dimension = embeddings.shape[1]
-index = faiss.IndexFlatL2(dimension)
-index.add(embeddings)
+# ------------------------------
+def build_vector_store():
+    print("Reading documents...")
+    docs = read_txt_files(DOCS_FOLDER)
+    all_chunks = []
+    for doc in docs:
+        all_chunks.extend(chunk_text(doc))
 
-# Save FAISS index
-if not os.path.exists(VECTOR_FOLDER):
-    os.makedirs(VECTOR_FOLDER)
+    print(f"Total chunks: {len(all_chunks)}")
 
-faiss.write_index(index, os.path.join(VECTOR_FOLDER, "faiss_index.idx"))
+    print("Generating embeddings...")
+    model = SentenceTransformer(MODEL_NAME)
+    embeddings = model.encode(all_chunks, show_progress_bar=True, convert_to_numpy=True)
 
-# Save texts for retrieval mapping
-with open(os.path.join(VECTOR_FOLDER, "texts.pkl"), "wb") as f:
-    pickle.dump(texts, f)
+    print("Building FAISS index...")
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
 
-print("✅ FAISS vector store built successfully!")
+    # Save chunks and index
+    with open(os.path.join(VECTOR_FOLDER, "chunks.pkl"), "wb") as f:
+        pickle.dump(all_chunks, f)
+
+    faiss.write_index(index, os.path.join(VECTOR_FOLDER, "faiss_index.bin"))
+
+    print("Vector store built successfully!")
+
+# ------------------------------
+# Run script
+# ------------------------------
+if __name__ == "__main__":
+    build_vector_store()
