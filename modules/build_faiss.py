@@ -1,101 +1,52 @@
 import os
 import pickle
-import faiss
 from sentence_transformers import SentenceTransformer
+import faiss
 
-from config import VECTOR_FOLDER, FAISS_INDEX_PATH, CHUNKS_PATH, EMBED_MODEL
+VECTOR_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "vector_store")
+DOCS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
+CHUNK_SIZE = 500
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+os.makedirs(VECTOR_FOLDER, exist_ok=True)
 
-# -----------------------------------------------------
-# Load text files & prepare raw data
-# -----------------------------------------------------
-def load_text_files(folder_path="data"):
-    """
-    Loads all .txt files in the 'data' folder.
-    Every file's content becomes part of the knowledge base.
-    """
-    documents = []
+def read_txt_files(folder_path):
+    docs = []
+    for file in os.listdir(folder_path):
+        if file.endswith(".txt"):
+            with open(os.path.join(folder_path, file), "r", encoding="utf-8") as f:
+                docs.append(f.read())
+    return docs
 
-    if not os.path.exists(folder_path):
-        raise FileNotFoundError(f"'data' folder not found: {folder_path}")
-
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".txt") or filename.endswith(".md"):
-            full_path = os.path.join(folder_path, filename)
-            with open(full_path, "r", encoding="utf-8") as f:
-                documents.append(f.read())
-
-    if len(documents) == 0:
-        raise ValueError("No text files found in 'data' folder.")
-
-    return documents
-
-
-# -----------------------------------------------------
-# Split text into chunks
-# -----------------------------------------------------
-def chunk_text(text, chunk_size=400):
-    """
-    Splits long text into smaller chunks for embedding.
-    """
-    words = text.split()
+def chunk_text(text, chunk_size=CHUNK_SIZE):
     chunks = []
-
-    for i in range(0, len(words), chunk_size):
-        chunk = " ".join(words[i:i + chunk_size])
-        chunks.append(chunk)
-
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start = end
     return chunks
 
-
-# -----------------------------------------------------
-# Build FAISS Index
-# -----------------------------------------------------
-def build_faiss_index():
-    print("🔄 Loading documents...")
-    documents = load_text_files()
-
-    print("🔄 Splitting into chunks...")
+def build_vector_store():
+    docs = read_txt_files(DOCS_FOLDER)
     all_chunks = []
-    for doc in documents:
+    for doc in docs:
         all_chunks.extend(chunk_text(doc))
 
-    print(f"📦 Total chunks created: {len(all_chunks)}")
+    print(f"Total chunks: {len(all_chunks)}")
 
-    # Load SentenceTransformer
-    print("🔄 Loading embedding model...")
-    embedder = SentenceTransformer(EMBED_MODEL)
+    model = SentenceTransformer(MODEL_NAME)
+    embeddings = model.encode(all_chunks, show_progress_bar=True, convert_to_numpy=True)
 
-    # Create vectors
-    print("🔄 Creating embeddings...")
-    embeddings = embedder.encode(all_chunks, show_progress_bar=True)
-
-    # Convert to float32 for FAISS
-    embeddings = embeddings.astype("float32")
-
-    # Create FAISS index
-    print("🔄 Building FAISS index...")
-    dim = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dim)
-
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
 
-    # Ensure vector_store exists
-    os.makedirs(VECTOR_FOLDER, exist_ok=True)
-
-    # Save FAISS index
-    print("💾 Saving FAISS index...")
-    faiss.write_index(index, FAISS_INDEX_PATH)
-
-    # Save chunks
-    print("💾 Saving chunks...")
-    with open(CHUNKS_PATH, "wb") as f:
+    with open(os.path.join(VECTOR_FOLDER, "chunks.pkl"), "wb") as f:
         pickle.dump(all_chunks, f)
 
-    print("\n✅ FAISS index built successfully!")
-    print(f"📁 Saved to: {FAISS_INDEX_PATH}")
-    print(f"📁 Saved to: {CHUNKS_PATH}")
-
+    faiss.write_index(index, os.path.join(VECTOR_FOLDER, "faiss_index.bin"))
+    print("Vector store built successfully!")
 
 if __name__ == "__main__":
-    build_faiss_index()
+    build_vector_store()
