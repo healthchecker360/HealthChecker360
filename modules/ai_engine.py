@@ -7,20 +7,23 @@ import requests
 from config import VECTOR_PATH, TEMP_PATH, TOP_K, DEBUG, GOOGLE_API_KEY, GROQ_API_KEY
 from modules.rag_engine import retrieve_relevant_chunks
 
-# ------------------------------ PDF generation ------------------------------
+# ------------------------------ PDF generation (Unicode safe) ------------------------------
 def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf_file = TEMP_PATH / filename
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    
+    # Add a Unicode TrueType font (ensure this path exists on your system)
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"  # Common on Linux
+    if not os.path.exists(font_path):
+        raise FileNotFoundError(f"Font file not found: {font_path}")
+    
+    pdf.add_font('DejaVu', '', font_path, uni=True)
+    pdf.set_font("DejaVu", size=12)
+    
     for line in text.split("\n"):
-        try:
-            # ensure text is ASCII-safe for FPDF
-            pdf.multi_cell(0, 8, line.encode("latin-1", "replace").decode("latin-1"))
-        except Exception as e:
-            if DEBUG:
-                print(f"[DEBUG] PDF encoding error: {e}")
-            pdf.multi_cell(0, 8, line)
+        pdf.multi_cell(0, 8, line)
+    
     pdf.output(str(pdf_file))
     return str(pdf_file)
 
@@ -41,7 +44,7 @@ def query_gemini(query: str) -> str:
     headers = {"Authorization": f"Bearer {GOOGLE_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=20)
+        response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
         return result['candidates'][0]['content']
@@ -60,7 +63,7 @@ def query_groq(query: str) -> str:
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
     try:
-        response = requests.post(url, headers=headers, json=data, timeout=20)
+        response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
         return result.get('text', '')
@@ -73,13 +76,11 @@ def query_groq(query: str) -> str:
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
     answer = ""
 
-    # Step 1: Try local FAISS retrieval
+    # Step 1: Try local FAISS
     try:
         chunks = retrieve_relevant_chunks(query, top_k=top_k)
         if chunks:
             answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
-            if DEBUG:
-                print(f"[DEBUG] Retrieved {len(chunks)} chunks from FAISS.")
     except Exception as e:
         if DEBUG:
             print(f"[DEBUG] FAISS retrieval skipped: {e}")
