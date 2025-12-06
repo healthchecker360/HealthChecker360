@@ -1,115 +1,209 @@
-import os
-import pickle
-from pathlib import Path
-from gtts import gTTS
-from fpdf import FPDF
-import requests
-from config import VECTOR_PATH, TEMP_PATH, TOP_K, DEBUG, GOOGLE_API_KEY, GROQ_API_KEY
+# modules/interactions.py
+import streamlit as st
+from modules.ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
 from modules.rag_engine import retrieve_relevant_chunks
+import tempfile
+import os
+import docx
+from PyPDF2 import PdfReader
+import speech_recognition as sr
 
-# ------------------------------
-# PDF generation
-# ------------------------------
-def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
-    pdf_file = TEMP_PATH / filename
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    for line in text.split("\n"):
-        pdf.multi_cell(0, 8, line)
-    pdf.output(str(pdf_file))
-    return str(pdf_file)
+# -----------------------------------------------------------
+#               CLINICAL DIAGNOSIS MODULE (FINAL)
+# -----------------------------------------------------------
+def chat_diagnosis_module():
+    st.set_page_config(page_title="🩺 HealthChecker360", layout="wide")
+    
+    # -----------------------------
+    # Custom Dark Theme Styling
+    # -----------------------------
+    st.markdown(
+        """
+        <style>
+            .stApp {
+                background-color: #0d1117 !important;
+                color: #ffffff !important;
+            }
+            h1, h2, h3, h4 {
+                color: #00aaff !important;
+            }
+            .stTextInput>div>input, .stTextArea>div>textarea {
+                background-color: #1a1a1a !important;
+                color: #ffffff !important;
+                border: 1px solid #00aaff !important;
+            }
+            .stButton>button {
+                background-color: #00aaff !important;
+                color: #000000 !important;
+                border-radius: 6px;
+                padding: 6px 18px;
+                font-size: 15px;
+            }
+            .stButton>button:hover {
+                background-color: #0077aa !important;
+                color: #ffffff !important;
+            }
+            section[data-testid="stSidebar"] {
+                background-color: #111827 !important;
+                color: #ffffff !important;
+            }
+            div[role="radiogroup"] label {
+                color: #00aaff !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
-# ------------------------------
-# Audio generation
-# ------------------------------
-def text_to_speech(text: str, filename: str = "output.mp3") -> str:
-    audio_file = TEMP_PATH / filename
-    tts = gTTS(text=text, lang="en")
-    tts.save(str(audio_file))
-    return str(audio_file)
+    st.title("🩺 HealthChecker360 - Clinical Diagnosis Assistant")
 
-# ------------------------------
-# Online AI: Gemini
-# ------------------------------
-def query_gemini(query: str) -> str:
-    if not GOOGLE_API_KEY:
-        if DEBUG:
-            print("[DEBUG] GEMINI_API_KEY missing in .env")
-        return ""
-    url = "https://api.generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText"
-    headers = {"Authorization": f"Bearer {GOOGLE_API_KEY}", "Content-Type": "application/json"}
-    data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        result = response.json()
-        return result['candidates'][0]['content']
-    except Exception as e:
-        if DEBUG:
-            print(f"[DEBUG] Gemini API error: {e}")
-        return ""
+    # -----------------------------
+    # Input Type Selection
+    # -----------------------------
+    input_type = st.radio(
+        "Choose Input Type:",
+        ("Text", "Voice", "File Upload")
+    )
 
-# ------------------------------
-# Online AI: Groq (optional fallback)
-# ------------------------------
-def query_groq(query: str) -> str:
-    if not GROQ_API_KEY:
-        if DEBUG:
-            print("[DEBUG] GROQ_API_KEY missing in .env")
-        return ""
-    url = "https://api.groq.ai/v1/generate"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-    data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        result = response.json()
-        return result.get('text', '')
-    except Exception as e:
-        if DEBUG:
-            print(f"[DEBUG] Groq API error: {e}")
-        return ""
+    user_query = ""
 
-# ------------------------------
-# Main clinical answer function
-# ------------------------------
-def generate_clinical_answer(query: str, retrieved_context=None, top_k: int = TOP_K) -> str:
-    """
-    Returns professional medical answer:
-    1. Uses provided retrieved_context (FAISS chunks) if available.
-    2. Falls back to Gemini API.
-    3. Optional fallback to Groq API if Gemini fails.
-    """
-    answer = ""
+    # ==========================
+    # TEXT INPUT
+    # ==========================
+    if input_type == "Text":
+        user_query = st.text_area("Enter your medical query:", height=140)
+        if st.button("Analyze Symptoms"):
+            if user_query.strip():
+                with st.spinner("Analyzing symptoms and retrieving relevant info..."):
+                    # Retrieve chunks from FAISS
+                    retrieved_context = retrieve_relevant_chunks(user_query)
+                    # Generate answer
+                    answer = generate_clinical_answer(
+                        query=user_query,
+                        retrieved_context=retrieved_context
+                    )
+                # Display answer
+                st.subheader("✅ Clinical Answer")
+                st.markdown(answer.replace("\n", "  \n- "), unsafe_allow_html=True)
 
-    # Step 1: Use FAISS retrieved context if provided
-    if retrieved_context:
-        answer = "\n\n".join([f"• {chunk.strip()}" for chunk in retrieved_context])
+                # Optional Outputs
+                col1, col2 = st.columns(2)
 
-    # Step 2: Local FAISS retrieval if no context provided
-    if not answer.strip():
-        try:
-            faiss_index_file = VECTOR_PATH / "faiss_index.bin"
-            chunks_file = VECTOR_PATH / "chunks.pkl"
-            if faiss_index_file.exists() and chunks_file.exists():
-                chunks = retrieve_relevant_chunks(query, top_k=top_k)
-                if chunks:
-                    answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
-        except Exception as e:
-            if DEBUG:
-                print(f"[DEBUG] FAISS retrieval skipped: {e}")
+                # PDF
+                with col1:
+                    if st.button("Download as PDF"):
+                        pdf_file = text_to_pdf(answer)
+                        with open(pdf_file, "rb") as f:
+                            st.download_button(
+                                label="Download PDF",
+                                data=f.read(),
+                                file_name="clinical_answer.pdf",
+                                mime="application/pdf"
+                            )
 
-    # Step 3: Online Gemini fallback
-    if not answer.strip():
-        answer = query_gemini(query)
+                # TTS Audio
+                with col2:
+                    if st.button("Play as Voice"):
+                        tts_file = text_to_speech(answer)
+                        st.audio(tts_file, format="audio/mp3")
+            else:
+                st.warning("Please enter a query before clicking Analyze.")
 
-    # Step 4: Groq fallback (if still empty)
-    if not answer.strip():
-        answer = query_groq(query)
+    # ==========================
+    # VOICE INPUT
+    # ==========================
+    elif input_type == "Voice":
+        st.info("Upload a short MP3/WAV recording describing symptoms.")
+        audio_file = st.file_uploader("Upload Voice File:", type=["mp3", "wav"])
+        if audio_file:
+            try:
+                recognizer = sr.Recognizer()
+                with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                    tmp.write(audio_file.read())
+                    tmp_path = tmp.name
+                with sr.AudioFile(tmp_path) as source:
+                    audio_data = recognizer.record(source)
+                user_query = recognizer.recognize_google(audio_data)
+                st.success(f"Transcribed Text: {user_query}")
 
-    # Step 5: Final fallback
-    if not answer.strip():
-        answer = "No answer found locally or online. Please consult a healthcare professional."
+                if st.button("Analyze Voice Input"):
+                    with st.spinner("Analyzing voice query..."):
+                        retrieved_context = retrieve_relevant_chunks(user_query)
+                        answer = generate_clinical_answer(
+                            query=user_query,
+                            retrieved_context=retrieved_context
+                        )
+                    st.subheader("✅ Clinical Answer")
+                    st.markdown(answer.replace("\n", "  \n- "), unsafe_allow_html=True)
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("Download as PDF"):
+                            pdf_file = text_to_pdf(answer)
+                            with open(pdf_file, "rb") as f:
+                                st.download_button(
+                                    label="Download PDF",
+                                    data=f.read(),
+                                    file_name="clinical_answer.pdf",
+                                    mime="application/pdf"
+                                )
+                    with col2:
+                        if st.button("Play as Voice"):
+                            tts_file = text_to_speech(answer)
+                            st.audio(tts_file, format="audio/mp3")
+            except Exception:
+                st.error("Unable to process voice file. Please try again.")
 
-    return answer
+    # ==========================
+    # FILE UPLOAD INPUT
+    # ==========================
+    elif input_type == "File Upload":
+        uploaded_file = st.file_uploader(
+            "Upload medical document (PDF, TXT, DOCX):",
+            type=["pdf", "txt", "docx"]
+        )
+
+        if uploaded_file:
+            text_content = ""
+            # PDF
+            if uploaded_file.type == "application/pdf":
+                reader = PdfReader(uploaded_file)
+                for page in reader.pages:
+                    text_content += page.extract_text() or ""
+            # TXT
+            elif uploaded_file.type == "text/plain":
+                text_content = uploaded_file.read().decode("utf-8")
+            # DOCX
+            elif uploaded_file.type == \
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                doc = docx.Document(uploaded_file)
+                text_content = "\n".join([p.text for p in doc.paragraphs])
+
+            user_query = text_content
+            st.success("File processed successfully.")
+
+            if st.button("Analyze File Input") and user_query.strip():
+                with st.spinner("Analyzing uploaded file..."):
+                    retrieved_context = retrieve_relevant_chunks(user_query)
+                    answer = generate_clinical_answer(
+                        query=user_query,
+                        retrieved_context=retrieved_context
+                    )
+                st.subheader("✅ Clinical Answer")
+                st.markdown(answer.replace("\n", "  \n- "), unsafe_allow_html=True)
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Download as PDF"):
+                        pdf_file = text_to_pdf(answer)
+                        with open(pdf_file, "rb") as f:
+                            st.download_button(
+                                label="Download PDF",
+                                data=f.read(),
+                                file_name="clinical_answer.pdf",
+                                mime="application/pdf"
+                            )
+                with col2:
+                    if st.button("Play as Voice"):
+                        tts_file = text_to_speech(answer)
+                        st.audio(tts_file, format="audio/mp3")
