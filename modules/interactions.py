@@ -1,75 +1,103 @@
+# modules/interactions.py
 import streamlit as st
-from modules.ai_engine import generate_clinical_answer
+from modules.ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
 from modules.rag_engine import retrieve_relevant_chunks
-from PIL import Image
+from pathlib import Path
+import tempfile
+import os
+from gtts import gTTS
 import io
 
+# -----------------------------
+# Clinical Diagnosis Module
+# -----------------------------
 def chat_diagnosis_module():
-    import streamlit as st
-    from modules.ai_engine import generate_clinical_answer
-    from modules.rag_engine import retrieve_relevant_chunks
+    st.title("🩺 HealthChecker360 - Clinical Diagnosis Assistant")
+    
+    # -----------------------------
+    # Input options
+    # -----------------------------
+    input_type = st.radio(
+        "Choose input type:",
+        ("Text", "Voice", "File Upload")
+    )
 
-    st.header("🩺 Clinical Diagnosis Assistant")
+    user_query = ""
 
-    user_query = st.text_input("Enter your medical query:")
+    if input_type == "Text":
+        user_query = st.text_area("Enter your medical query here:")
 
+    elif input_type == "Voice":
+        st.info("Please record your voice in English describing your symptoms.")
+        audio_file = st.file_uploader("Upload voice file (MP3/WAV):", type=["mp3", "wav"])
+        if audio_file:
+            import speech_recognition as sr
+            r = sr.Recognizer()
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                tmp.write(audio_file.read())
+                tmp_path = tmp.name
+            with sr.AudioFile(tmp_path) as source:
+                audio = r.record(source)
+                try:
+                    user_query = r.recognize_google(audio)
+                    st.success(f"Transcribed Text: {user_query}")
+                except:
+                    st.error("Could not recognize speech. Try again.")
+
+    elif input_type == "File Upload":
+        uploaded_file = st.file_uploader("Upload medical file:", type=["pdf", "txt", "docx"])
+        if uploaded_file:
+            from PyPDF2 import PdfReader
+            import docx
+            if uploaded_file.type == "application/pdf":
+                reader = PdfReader(uploaded_file)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() or ""
+                user_query = text
+            elif uploaded_file.type == "text/plain":
+                user_query = str(uploaded_file.read(), "utf-8")
+            elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                doc = docx.Document(uploaded_file)
+                user_query = "\n".join([p.text for p in doc.paragraphs])
+            st.success("File content loaded as query.")
+
+    # -----------------------------
+    # Process query
+    # -----------------------------
     if st.button("Get Clinical Answer") and user_query:
-        chunks = retrieve_relevant_chunks(user_query)
-        if chunks:
-            answer = generate_clinical_answer(user_query, chunks=chunks)
-        else:
-            answer = generate_clinical_answer(user_query, online_fallback=True)
+        with st.spinner("Analyzing symptoms and searching for relevant clinical info..."):
+            # First search in local docs & FAISS
+            chunks = retrieve_relevant_chunks(user_query)
+            
+            if chunks:
+                answer = generate_clinical_answer(user_query, chunks=chunks)
+            else:
+                # Fallback to online AI (Gemini + Groq)
+                answer = generate_clinical_answer(user_query, online_fallback=True)
 
-        st.subheader("Clinical Answer:")
-        st.markdown(answer)
+        # -----------------------------
+        # Display result in professional bullets
+        # -----------------------------
+        st.subheader("✅ Clinical Answer")
+        st.markdown(answer, unsafe_allow_html=True)
 
-
-
-    # Text input
-    user_query = st.text_input("Enter your medical query:")
-
-    # Image input
-    uploaded_file = st.file_uploader("Or upload an image (symptom, rash, scan):", type=["jpg","png","jpeg"])
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
-        # Convert image to bytes for AI processing
-        buffer = io.BytesIO()
-        image.save(buffer, format="PNG")
-        user_query += " [Image attached]"  # Mark input for AI
-
-    # Voice input
-    audio_file = st.file_uploader("Or record voice query (mp3/wav):", type=["wav","mp3"])
-    if audio_file:
-        import speech_recognition as sr
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(audio_file) as source:
-            audio_data = recognizer.record(source)
-            try:
-                voice_text = recognizer.recognize_google(audio_data)
-                st.write(f"Voice recognized: {voice_text}")
-                user_query += f" {voice_text}"
-            except Exception as e:
-                st.warning(f"Could not recognize audio: {e}")
-
-    if st.button("Get Clinical Answer") and user_query:
-        # Step 1: Try local FAISS documents
-        chunks = retrieve_relevant_chunks(user_query)
-        if chunks:
-            answer = generate_clinical_answer(user_query, chunks=chunks)
-        else:
-            # Step 2: Fallback to AI online if no chunks
-            answer = generate_clinical_answer(user_query, online_fallback=True)
-
-        # Step 3: Display results
-        st.subheader("Clinical Answer:")
-        st.markdown(answer)
-
-        # Optional: Generate PDF or audio
-        if st.button("Generate PDF"):
-            pdf_path = text_to_pdf(user_query, answer)
-            st.success(f"PDF saved: {pdf_path}")
-
-        if st.button("Listen Answer"):
-            audio_path = text_to_speech(answer)
-            st.audio(audio_path)
+        # -----------------------------
+        # Optional outputs
+        # -----------------------------
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("Download as PDF"):
+                pdf_file = text_to_pdf(answer)
+                st.download_button(
+                    label="Download PDF",
+                    data=pdf_file,
+                    file_name="clinical_answer.pdf",
+                    mime="application/pdf"
+                )
+        
+        with col2:
+            if st.button("Play as Voice"):
+                tts_audio = text_to_speech(answer)
+                st.audio(tts_audio, format="audio/mp3")
