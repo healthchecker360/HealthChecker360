@@ -2,96 +2,115 @@ import streamlit as st
 import math
 
 # ------------------------------
-# CALCULATORS MODULE UI
+# Clinical Calculators
+# ------------------------------
+
+def calculate_bmi(weight, height):
+    """BMI = weight(kg) / height(m)^2"""
+    if height <= 0:
+        return None
+    bmi = weight / (height ** 2)
+    return round(bmi, 2)
+
+def calculate_bsa(weight, height):
+    """Mosteller formula: BSA = sqrt((height(cm)*weight(kg))/3600)"""
+    bsa = math.sqrt((height * weight) / 3600)
+    return round(bsa, 2)
+
+def calculate_gfr(creatinine, age, sex, race='non-black'):
+    """
+    Simplified CKD-EPI equation (ml/min/1.73 m^2)
+    sex: 'male' or 'female'
+    race: 'black' or 'non-black'
+    """
+    k = 0.7 if sex.lower() == 'female' else 0.9
+    alpha = -0.329 if sex.lower() == 'female' else -0.411
+    min_scr_k = min(creatinine / k, 1)
+    max_scr_k = max(creatinine / k, 1)
+    gfr = 141 * (min_scr_k ** alpha) * (max_scr_k ** -1.209) * (0.993 ** age)
+    if sex.lower() == 'female':
+        gfr *= 1.018
+    if race.lower() == 'black':
+        gfr *= 1.159
+    return round(gfr, 2)
+
+# ------------------------------
+# Pharmaceutical Calculators
+# ------------------------------
+
+def drip_rate(volume_ml, time_min, drop_factor=20):
+    """IV drip rate in drops/min"""
+    rate = (volume_ml * drop_factor) / time_min
+    return round(rate, 1)
+
+def isotonicity_calc(solute_mEq, solvent_L):
+    """Simple isotonicity check (mOsm/L)"""
+    try:
+        osmolarity = solute_mEq / solvent_L
+        return round(osmolarity, 2)
+    except:
+        return None
+
+def ph_calculator(h_concentration):
+    """Calculate pH from H+ concentration (mol/L)"""
+    try:
+        ph = -math.log10(h_concentration)
+        return round(ph, 2)
+    except:
+        return None
+
+# ------------------------------
+# Streamlit UI
 # ------------------------------
 def calculators_ui():
-    st.title("HealthChecker360 - Calculators")
-    st.write("Select a calculator below:")
+    st.title("HealthChecker360 - Clinical & Pharmaceutical Calculators")
 
-    calc_options = [
-        "BMI",
-        "BSA (Mosteller)",
-        "Cockcroft-Gault GFR",
-        "IV Drip Rate (mL/hr)",
-        "Paracetamol Dose (mg/kg)"
-    ]
-    choice = st.selectbox("Choose Calculator", [""] + calc_options)
+    st.subheader("BMI Calculator")
+    weight = st.number_input("Weight (kg):", value=70.0)
+    height_m = st.number_input("Height (m):", value=1.7)
+    if st.button("Calculate BMI"):
+        bmi = calculate_bmi(weight, height_m)
+        st.success(f"BMI: {bmi}")
 
-    # ------------------------------
-    # BMI Calculator
-    # ------------------------------
-    if choice == "BMI":
-        weight = st.number_input("Weight (kg)", min_value=0.0)
-        height = st.number_input("Height (cm)", min_value=0.0)
-        if st.button("Calculate BMI"):
-            if height > 0:
-                bmi = weight / ((height / 100) ** 2)
-                st.markdown(f"**BMI:** {bmi:.2f}")
-                if bmi < 18.5:
-                    st.markdown("Underweight")
-                elif 18.5 <= bmi < 25:
-                    st.markdown("Normal weight")
-                elif 25 <= bmi < 30:
-                    st.markdown("Overweight")
-                else:
-                    st.markdown("Obese")
-            else:
-                st.warning("Height must be greater than 0")
+    st.subheader("BSA Calculator")
+    weight = st.number_input("Weight (kg):", value=70.0, key="bsa_weight")
+    height_cm = st.number_input("Height (cm):", value=170.0, key="bsa_height")
+    if st.button("Calculate BSA"):
+        bsa = calculate_bsa(weight, height_cm)
+        st.success(f"BSA: {bsa} m²")
 
-    # ------------------------------
-    # BSA Calculator (Mosteller)
-    # ------------------------------
-    elif choice == "BSA (Mosteller)":
-        weight = st.number_input("Weight (kg)", min_value=0.0, key="bsa_weight")
-        height = st.number_input("Height (cm)", min_value=0.0, key="bsa_height")
-        if st.button("Calculate BSA"):
-            if height > 0 and weight > 0:
-                bsa = math.sqrt((height * weight) / 3600)
-                st.markdown(f"**BSA:** {bsa:.2f} m²")
-            else:
-                st.warning("Height and weight must be greater than 0")
+    st.subheader("GFR Calculator")
+    creatinine = st.number_input("Serum Creatinine (mg/dL):", value=1.0)
+    age = st.number_input("Age (years):", value=30)
+    sex = st.radio("Sex:", ["Male", "Female"])
+    race = st.radio("Race:", ["Non-Black", "Black"])
+    if st.button("Calculate GFR"):
+        gfr = calculate_gfr(creatinine, age, sex, race.lower())
+        st.success(f"Estimated GFR: {gfr} ml/min/1.73 m²")
 
-    # ------------------------------
-    # Cockcroft-Gault GFR
-    # ------------------------------
-    elif choice == "Cockcroft-Gault GFR":
-        age = st.number_input("Age (years)", min_value=0)
-        weight = st.number_input("Weight (kg)", min_value=0.0, key="gfr_weight")
-        creatinine = st.number_input("Serum Creatinine (mg/dL)", min_value=0.0)
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        if st.button("Calculate GFR"):
-            if creatinine > 0 and weight > 0:
-                gfr = ((140 - age) * weight) / (72 * creatinine)
-                if gender == "Female":
-                    gfr *= 0.85
-                st.markdown(f"**Estimated GFR:** {gfr:.2f} mL/min")
-            else:
-                st.warning("Enter valid weight and creatinine")
+    st.subheader("IV Drip Rate Calculator")
+    volume_ml = st.number_input("Volume (mL):", value=500)
+    time_min = st.number_input("Time (minutes):", value=60)
+    drop_factor = st.number_input("Drop factor (drops/mL):", value=20)
+    if st.button("Calculate Drip Rate"):
+        rate = drip_rate(volume_ml, time_min, drop_factor)
+        st.success(f"Drip Rate: {rate} drops/min")
 
-    # ------------------------------
-    # IV Drip Rate Calculator
-    # ------------------------------
-    elif choice == "IV Drip Rate (mL/hr)":
-        total_volume = st.number_input("Total Volume (mL)", min_value=0.0)
-        duration = st.number_input("Duration (hours)", min_value=0.0)
-        if st.button("Calculate Drip Rate"):
-            if duration > 0:
-                rate = total_volume / duration
-                st.markdown(f"**IV Drip Rate:** {rate:.2f} mL/hr")
-            else:
-                st.warning("Duration must be greater than 0")
+    st.subheader("Isotonicity Calculator")
+    solute_mEq = st.number_input("Solute (mEq):", value=100.0)
+    solvent_L = st.number_input("Solvent (L):", value=1.0)
+    if st.button("Calculate Osmolarity"):
+        osm = isotonicity_calc(solute_mEq, solvent_L)
+        st.success(f"Osmolarity: {osm} mOsm/L")
 
-    # ------------------------------
-    # Paracetamol Dose Calculator
-    # ------------------------------
-    elif choice == "Paracetamol Dose (mg/kg)":
-        weight = st.number_input("Weight (kg)", min_value=0.0, key="para_weight")
-        dose_per_kg = 15  # mg/kg single dose
-        max_daily = 4000  # mg/day
-        if st.button("Calculate Dose"):
-            if weight > 0:
-                single_dose = weight * dose_per_kg
-                st.markdown(f"**Single Dose:** {single_dose:.0f} mg")
-                st.markdown(f"**Maximum Daily Dose:** {max_daily} mg")
-            else:
-                st.warning("Weight must be greater than 0")
+    st.subheader("pH Calculator")
+    h_conc = st.number_input("H+ concentration (mol/L):", value=1e-7, format="%.10f")
+    if st.button("Calculate pH"):
+        ph = ph_calculator(h_conc)
+        st.success(f"pH: {ph}")
+
+# ------------------------------
+# Direct run
+# ------------------------------
+if __name__ == "__main__":
+    calculators_ui()
