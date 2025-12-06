@@ -1,76 +1,37 @@
 import streamlit as st
 
-# ==============================
-# SAMPLE LAB REFERENCE RANGES
-# ==============================
-# This is a minimal reference. Expand as needed.
-LAB_REFERENCE = {
-    "CBC": {
-        "Hemoglobin": {"male": "13.5-17.5 g/dL", "female": "12-16 g/dL"},
-        "WBC": "4,000-11,000 /µL",
-        "Platelets": "150,000-450,000 /µL"
-    },
-    "LFT": {
-        "ALT": "7-56 U/L",
-        "AST": "10-40 U/L",
-        "Bilirubin": "0.1-1.2 mg/dL"
-    },
-    "RFT": {
-        "Creatinine": "0.6-1.3 mg/dL",
-        "BUN": "7-20 mg/dL",
-        "eGFR": "≥90 mL/min/1.73m²"
-    },
-    "Electrolytes": {
-        "Na": "135-145 mmol/L",
-        "K": "3.5-5.0 mmol/L",
-        "Ca": "8.5-10.5 mg/dL"
-    }
-}
-
-# ==============================
+# ------------------------------
 # LAB MODULE UI
-# ==============================
+# ------------------------------
 def lab_module_ui():
-    st.title("Lab Interpretation Module")
-    st.write("Enter your lab values to get basic interpretation and recommendations.")
+    st.title("HealthChecker360 - Lab Test Interpretation")
+    st.write("Enter your lab values to get a basic interpretation.")
 
-    lab_type = st.selectbox("Select Lab Type", list(LAB_REFERENCE.keys()))
-    lab_values = {}
+    # Example labs
+    labs = {
+        "Hemoglobin (g/dL)": (12, 16),
+        "WBC (10^3/µL)": (4, 11),
+        "Platelets (10^3/µL)": (150, 450),
+        "Creatinine (mg/dL)": (0.6, 1.3),
+        "BUN (mg/dL)": (7, 20),
+        "ALT (U/L)": (7, 56),
+        "AST (U/L)": (10, 40),
+        "TSH (µIU/mL)": (0.4, 4.0),
+        "Blood Glucose Fasting (mg/dL)": (70, 100),
+        "HbA1c (%)": (4, 5.6)
+    }
 
-    # Input fields for each lab parameter dynamically
-    for param in LAB_REFERENCE[lab_type]:
-        lab_values[param] = st.text_input(f"Enter value for {param}", "")
+    user_values = {}
+    for lab_name, (low, high) in labs.items():
+        user_values[lab_name] = st.number_input(f"{lab_name} [{low}-{high}]", min_value=0.0)
 
-    if st.button("Interpret Lab Values"):
+    if st.button("Interpret Labs"):
         st.subheader("Interpretation Results")
-
-        for param, value in lab_values.items():
-            if not value:
-                st.warning(f"{param} value is missing!")
-                continue
-
-            try:
-                value_float = float(value)
-            except ValueError:
-                st.error(f"{param} must be a numeric value!")
-                continue
-
-            ref = LAB_REFERENCE[lab_type][param]
-            if isinstance(ref, dict):  # Gender specific (e.g., Hemoglobin)
-                male_range = ref.get("male", "")
-                female_range = ref.get("female", "")
-                st.write(f"{param} Reference - Male: {male_range}, Female: {female_range}")
+        for lab_name, (low, high) in labs.items():
+            value = user_values[lab_name]
+            if value < low:
+                st.markdown(f"**{lab_name}:** Low ({value})")
+            elif value > high:
+                st.markdown(f"**{lab_name}:** High ({value})")
             else:
-                st.write(f"{param} Reference: {ref}")
-
-            # Basic interpretation (simple comparison)
-            if isinstance(ref, str) and "-" in ref:
-                low, high = map(float, ref.split("-"))
-                if value_float < low:
-                    st.write(f"{param}: LOW")
-                elif value_float > high:
-                    st.write(f"{param}: HIGH")
-                else:
-                    st.write(f"{param}: Normal")
-            else:
-                st.write(f"{param}: Check reference manually")
+                st.markdown(f"**{lab_name}:** Normal ({value})")
