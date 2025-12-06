@@ -5,26 +5,23 @@ from dotenv import load_dotenv
 # ------------------------------
 # Load environment variables
 # ------------------------------
-load_dotenv()  # reads .env file in project root
+load_dotenv()
 
 # ------------------------------
-# Paths
+# Project Paths
 # ------------------------------
 BASE_DIR = Path(__file__).parent.resolve()
 
-# Folders
-DOCS_PATH = BASE_DIR / "pdfs"             # Place all your guideline files here (pdf, txt, docx)
-VECTOR_PATH = BASE_DIR / "vector_store"   # FAISS index & chunks storage
-TEMP_PATH = BASE_DIR / "temp"             # Generated PDFs, audio
-LOG_PATH = BASE_DIR / "logs"              # Logs for debugging
+DOCS_PATH = BASE_DIR / "docs"             # Medical guidelines PDFs/TXT/DOCX
+VECTOR_PATH = BASE_DIR / "vector_store"   # FAISS embeddings
+TEMP_PATH = BASE_DIR / "temp"             # Generated PDFs & audio
+DRUG_DB_PATH = BASE_DIR / "database" / "drugs.json"  # Drug database (JSON)
+LAB_DB_PATH = BASE_DIR / "database" / "labs.json"    # Lab reference database (JSON)
 
-# Auto-create directories if missing
-for path in [DOCS_PATH, VECTOR_PATH, TEMP_PATH, LOG_PATH]:
-    path.mkdir(parents=True, exist_ok=True)
-
-# FAISS index file
-FAISS_INDEX_PATH = VECTOR_PATH / "faiss_index.bin"
-CHUNKS_FILE_PATH = VECTOR_PATH / "chunks.pkl"
+VECTOR_PATH.mkdir(parents=True, exist_ok=True)
+TEMP_PATH.mkdir(parents=True, exist_ok=True)
+(DRUG_DB_PATH.parent).mkdir(parents=True, exist_ok=True)
+(LAB_DB_PATH.parent).mkdir(parents=True, exist_ok=True)
 
 # ------------------------------
 # API KEYS
@@ -34,13 +31,11 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 OPENFDA_API_KEY = os.getenv("OPENFDA_API_KEY", "")
 
 # ------------------------------
-# RAG Settings
+# RAG / Engine Settings
 # ------------------------------
-CHUNK_SIZE = 1000           # characters per chunk
-CHUNK_OVERLAP = 200         # overlap to avoid cutting sentences
-TOP_K = 3                   # top K chunks retrieved per query
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+TOP_K = 3
 
-# ------------------------------
-# Debug Mode
-# ------------------------------
+# Debug mode
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
