@@ -1,88 +1,79 @@
-import streamlit as st
-from ai_engine import generate_clinical_answer, text_to_speech, text_to_pdf
-from rag_engine import retrieve_relevant_chunks
+import json
 import os
-from PyPDF2 import PdfReader
+from config import LAB_REFERENCE
 
-# ------------------------------
-# Optional: Extract text from PDF
-# ------------------------------
-def extract_text_from_pdf(pdf_file):
-    reader = PdfReader(pdf_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + " "
-    return text
+# -----------------------------
+# Load Lab Reference Ranges
+# -----------------------------
+def load_lab_reference():
+    """
+    Loads lab reference values from a JSON file.
+    Example JSON structure:
+    {
+        "Hemoglobin": {"male": [13, 17], "female": [12, 15]},
+        "WBC": [4.0, 11.0]
+    }
+    """
+    if not os.path.exists(LAB_REFERENCE):
+        print(f"⚠️ Lab reference file not found: {LAB_REFERENCE}")
+        return {}
 
-# ------------------------------
-# Lab Interpretation
-# ------------------------------
-def interpret_lab_values(lab_input, top_k=5):
+    with open(LAB_REFERENCE, "r") as f:
+        data = json.load(f)
+    return data
+
+
+# -----------------------------
+# Interpret Lab Results
+# -----------------------------
+def interpret_lab_result(test_name, value, gender=None):
     """
-    Takes lab values (text or PDF), retrieves relevant clinical context,
-    and returns concise interpretation + next steps.
+    Compares lab value against reference ranges.
+    Returns interpretation string.
     """
-    # If PDF is uploaded, extract text
-    if hasattr(lab_input, "read"):  # Streamlit uploaded file
-        lab_text = extract_text_from_pdf(lab_input)
+    refs = load_lab_reference()
+
+    if test_name not in refs:
+        return f"No reference available for {test_name}."
+
+    ref = refs[test_name]
+
+    # Gender-specific reference
+    if isinstance(ref, dict):
+        if gender is None:
+            return f"Reference range for {test_name} depends on gender."
+        if gender.lower() not in ref:
+            return f"Gender '{gender}' not recognized for {test_name}."
+        low, high = ref[gender.lower()]
     else:
-        lab_text = lab_input
+        low, high = ref
 
-    # Retrieve relevant chunks from PDFs/guidelines
-    context_chunks = retrieve_relevant_chunks(lab_text, top_k=top_k)
-    context_text = "\n\n".join(context_chunks)
+    # Interpretation
+    if value < low:
+        result = "Low"
+    elif value > high:
+        result = "High"
+    else:
+        result = "Normal"
 
-    prompt = f"""
-You are a professional clinical assistant. Interpret the following lab results concisely:
-- Provide interpretation and next steps.
-- Do not add extra information.
+    return f"{test_name}: {value} ({result}) — Reference: {low}-{high}"
 
-Lab results:
-{lab_text}
 
-Context from guidelines:
-{context_text}
-"""
-
-    answer = generate_clinical_answer(prompt, engine="gemini")
-    return answer.strip()
-
-# ------------------------------
-# Streamlit Lab Module
-# ------------------------------
+# -----------------------------
+# Example Lab Module UI
+# -----------------------------
 def lab_module_ui():
-    st.header("🧪 Lab Interpretation Module")
+    """
+    CLI-based lab module (can later integrate with Streamlit)
+    """
+    print("=== Lab Interpretation Module ===")
+    test_name = input("Enter lab test name: ").strip()
+    try:
+        value = float(input("Enter test value: ").strip())
+    except ValueError:
+        print("⚠️ Invalid value entered!")
+        return
 
-    lab_input_type = st.radio("Input type:", ["Text", "PDF"])
-
-    lab_input = None
-
-    if lab_input_type == "Text":
-        lab_input = st.text_area("Enter lab values:", height=100)
-    elif lab_input_type == "PDF":
-        uploaded_file = st.file_uploader("Upload Lab PDF", type=["pdf"])
-        if uploaded_file is not None:
-            lab_input = uploaded_file
-
-    if st.button("Interpret Lab Results") and lab_input:
-        with st.spinner("Generating concise lab interpretation..."):
-            interpretation = interpret_lab_values(lab_input)
-
-        st.subheader("✅ Lab Interpretation")
-        st.text_area("Interpretation + Next Steps", value=interpretation, height=250)
-
-        # Optional TTS
-        tts_file = text_to_speech(interpretation)
-        st.audio(tts_file, format="audio/mp3")
-
-        # Optional PDF
-        pdf_file = text_to_pdf(interpretation)
-        with open(pdf_file, "rb") as f:
-            st.download_button("Download PDF", f, file_name="lab_interpretation.pdf", mime="application/pdf")
-
-# ------------------------------
-# Example Usage
-# ------------------------------
-if __name__ == "__main__":
-    import streamlit as st
-    lab_module_ui()
+    gender = input("Enter gender (optional): ").strip() or None
+    result = interpret_lab_result(test_name, value, gender)
+    print("\n" + result)
