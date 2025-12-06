@@ -9,6 +9,7 @@ langchain-text-splitters
 faiss-cpu
 pypdf
 PyPDF2
+python-docx
 
 gTTS
 fpdf
