@@ -7,7 +7,7 @@ from modules.calculators import calculators_ui
 from config import DEBUG
 
 # ------------------------------
-# Global Page Configuration
+# Page Config
 # ------------------------------
 st.set_page_config(
     page_title="HealthChecker360",
@@ -17,67 +17,73 @@ st.set_page_config(
 )
 
 # ------------------------------
-# Professional & Clear Clinical UI Styling
+# Dark Mode Professional Styling
 # ------------------------------
 st.markdown(
     """
     <style>
         /* App Background */
         .stApp {
-            background-color: #f7f9fc !important; /* very light grey-blue */
+            background-color: #1e1e2f !important;  /* dark charcoal */
+            color: #ffffff;
         }
 
-        /* Main Title Colors */
+        /* Titles */
         h1, h2, h3 {
-            color: #0B3D91 !important; /* deep medical blue */
+            color: #4fc3f7 !important;  /* bright cyan-blue */
         }
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
-            background-color: #ffffff !important;
-            border-right: 1px solid #d3d7dd !important;
+            background-color: #2b2b3f !important;
+            color: #ffffff !important;
         }
-
-        /* Sidebar labels */
         section[data-testid="stSidebar"] * {
-            color: #0B3D91 !important;
+            color: #ffffff !important;
             font-weight: 600;
         }
 
-        /* Text Inputs */
+        /* Inputs */
         .stTextInput input,
         .stTextArea textarea {
-            background-color: #ffffff !important;
-            color: #1f1f1f !important;
-            border: 1px solid #b8c4ce !important;
-            border-radius: 6px !important;
+            background-color: #2b2b3f !important;
+            color: #ffffff !important;
+            border: 1px solid #4fc3f7 !important;
+            border-radius: 8px !important;
         }
 
         /* Radio Buttons */
         div[role="radiogroup"] label {
-            color: #0B3D91 !important;
+            color: #4fc3f7 !important;
             font-weight: 600;
         }
 
         /* Buttons */
         .stButton>button {
-            background-color: #0B3D91 !important;
-            color: white !important;
+            background-color: #4fc3f7 !important;
+            color: #1e1e2f !important;
             border-radius: 6px !important;
             padding: 10px 20px;
-            border: none;
             font-size: 16px;
             font-weight: 600;
+            border: none;
         }
-
         .stButton>button:hover {
-            background-color: #082c6c !important;
+            background-color: #1da1f2 !important;
+            color: #ffffff !important;
         }
 
         /* Markdown / normal text */
-        .stMarkdown p {
-            color: #2a2a2a !important;
+        .stMarkdown p, .stText {
+            color: #d0d0d0 !important;
             font-size: 16px !important;
+        }
+
+        /* Info boxes */
+        .stInfo {
+            background-color: #2b2b3f !important;
+            color: #4fc3f7 !important;
+            border-left: 5px solid #4fc3f7;
         }
     </style>
     """,
@@ -88,7 +94,6 @@ st.markdown(
 # Sidebar Navigation
 # ------------------------------
 st.sidebar.title("HealthChecker360")
-
 menu = st.sidebar.radio(
     "Navigate",
     ["Home", "Drug Info", "Lab Interpretation", "Calculators"]
@@ -99,14 +104,14 @@ menu = st.sidebar.radio(
 # ------------------------------
 if menu == "Home":
     st.title("🩺 Medical Query Checker")
-
     st.write(
         """
-        Enter symptoms or medical questions below.
+        Enter your symptoms or medical questions below.
         The system uses a local medical database (FAISS) and online LLMs for accurate answers.
         """
     )
 
+    # Call the interactive clinical diagnosis module
     chat_diagnosis_module()
 
 # ------------------------------
@@ -114,9 +119,7 @@ if menu == "Home":
 # ------------------------------
 elif menu == "Drug Info":
     st.header("💊 Drug Information")
-
     drug_name = st.text_input("Enter Drug Name:")
-
     if st.button("Get Drug Info") and drug_name.strip():
         result = drug_module_ui(drug_name)
         st.markdown(result, unsafe_allow_html=True)
