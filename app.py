@@ -1,11 +1,11 @@
+# app.py
 import streamlit as st
 from modules.interactions import chat_diagnosis_module
 from modules.drug_module import drug_module_ui
 from modules.lab import lab_module_ui
 from modules.calculators import calculators_ui
+from modules.ai_engine import text_to_pdf, text_to_speech
 from config import DEBUG
-from modules.drug_module import drug_module_ui
-from config import DRUG_DB_PATH, DEBUG
 
 # ------------------------------
 # Page Config
@@ -37,47 +37,18 @@ if menu == "Home":
         "If not found, it will fetch results from online medical resources (Gemini/Groq)."
     )
 
-    user_query = st.text_area("Enter your medical query:", height=120)
-
-    if st.button("Get Diagnosis"):
-        if user_query.strip():
-            with st.spinner("Generating professional medical answer..."):
-               chat_diagnosis_module()  # no arguments
-
-            st.success("Answer Generated ✅")
-            st.markdown("### Clinical Answer:")
-            st.write(answer)
-
-            # Download PDF button
-            from modules.ai_engine import text_to_pdf, text_to_speech
-            pdf_file = text_to_pdf(answer)
-            st.download_button(
-                label="📄 Download PDF",
-                data=open(pdf_file, "rb").read(),
-                file_name="diagnosis.pdf",
-                mime="application/pdf"
-            )
-
-            # Download Audio button
-            audio_file = text_to_speech(answer)
-            st.audio(audio_file, format="audio/mp3")
-        else:
-            st.warning("Please enter a query!")
+    # Call the new diagnosis module
+    chat_diagnosis_module()
 
 # ------------------------------
 # Drug Info Module
 # ------------------------------
-import streamlit as st
-
-st.header("💊 Drug Information")
-
-# Input field for drug name
-drug_name = st.text_input("Enter Drug Name:")
-
-# Button to fetch drug info
-if st.button("Get Drug Info") and drug_name:
-    result = drug_module_ui(drug_name)  # Pass the input to the function
-    st.markdown(result)
+elif menu == "Drug Info":
+    st.header("💊 Drug Information")
+    drug_name = st.text_input("Enter Drug Name:")
+    if st.button("Get Drug Info") and drug_name:
+        result = drug_module_ui(drug_name)
+        st.markdown(result)
 
 # ------------------------------
 # Lab Interpretation Module
@@ -98,3 +69,5 @@ elif menu == "Calculators":
 # ------------------------------
 if DEBUG:
     st.sidebar.write("**Debug Mode Enabled**")
+
+
