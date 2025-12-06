@@ -1,82 +1,95 @@
 import os
 import pickle
-import faiss
+from config import VECTOR_STORE_PATH, DOCS_PATH, CHUNK_SIZE, SENTENCE_MODEL_NAME, SUPPORTED_DOCS
 from sentence_transformers import SentenceTransformer
+import faiss
 from PyPDF2 import PdfReader
 from docx import Document
 
-VECTOR_FOLDER = os.path.join(os.path.dirname(__file__), "vector_store")
-DOCS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
-CHUNK_SIZE = 500
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-
-# Create vector folder if not exists
-os.makedirs(VECTOR_FOLDER, exist_ok=True)
+# ==============================
+# HELPER FUNCTIONS TO READ FILES
+# ==============================
 
 def read_txt(file_path):
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
 def read_pdf(file_path):
-    reader = PdfReader(file_path)
     text = ""
+    reader = PdfReader(file_path)
     for page in reader.pages:
-        text += page.extract_text() or ""
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + "\n"
     return text
 
 def read_docx(file_path):
     doc = Document(file_path)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
-    return text
+    return "\n".join([para.text for para in doc.paragraphs])
 
 def read_all_docs(folder_path):
-    docs = []
+    """Read all supported documents from the folder"""
+    all_texts = []
     for file in os.listdir(folder_path):
         file_path = os.path.join(folder_path, file)
-        if file.endswith(".txt"):
-            docs.append(read_txt(file_path))
-        elif file.endswith(".pdf"):
-            docs.append(read_pdf(file_path))
-        elif file.endswith(".docx"):
-            docs.append(read_docx(file_path))
-    return docs
+        ext = os.path.splitext(file)[1].lower()
+        if ext not in SUPPORTED_DOCS:
+            continue
+        if ext == ".txt":
+            all_texts.append(read_txt(file_path))
+        elif ext == ".pdf":
+            all_texts.append(read_pdf(file_path))
+        elif ext == ".docx":
+            all_texts.append(read_docx(file_path))
+    return all_texts
 
+# ==============================
+# CHUNKING FUNCTION
+# ==============================
 def chunk_text(text, chunk_size=CHUNK_SIZE):
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        chunks.append(text[start:end])
-        start = end
-    return chunks
+    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
+# ==============================
+# BUILD VECTOR STORE
+# ==============================
 def build_vector_store():
-    docs = read_all_docs(DOCS_FOLDER)
+    print("Reading documents from:", DOCS_PATH)
+    docs = read_all_docs(DOCS_PATH)
     all_chunks = []
     for doc in docs:
         all_chunks.extend(chunk_text(doc))
+    
+    if not all_chunks:
+        raise ValueError("No documents found in 'docs/' folder or unsupported file types!")
 
-    print(f"Total chunks: {len(all_chunks)}")
+    print(f"Total chunks created: {len(all_chunks)}")
 
-    model = SentenceTransformer(MODEL_NAME)
-    embeddings = model.encode(all_chunks, show_progress_bar=True, convert_to_numpy=True)
+    # Load model
+    model = SentenceTransformer(SENTENCE_MODEL_NAME)
+    print("Generating embeddings...")
+    embeddings = model.encode(all_chunks, convert_to_numpy=True, show_progress_bar=True)
 
+    # Create FAISS index
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
+    print("FAISS index created with dimension:", dimension)
 
     # Save chunks
-    chunks_path = os.path.join(VECTOR_FOLDER, "chunks.pkl")
-    with open(chunks_path, "wb") as f:
+    chunks_file = os.path.join(VECTOR_STORE_PATH, "chunks.pkl")
+    with open(chunks_file, "wb") as f:
         pickle.dump(all_chunks, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print("Chunks saved to:", chunks_file)
 
     # Save FAISS index
-    index_path = os.path.join(VECTOR_FOLDER, "faiss_index.bin")
-    faiss.write_index(index, index_path)
+    faiss_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
+    faiss.write_index(index, faiss_file)
+    print("FAISS index saved to:", faiss_file)
 
-    print("Vector store built successfully!")
+    print("Vector store build completed successfully!")
 
+# ==============================
+# MAIN EXECUTION
+# ==============================
 if __name__ == "__main__":
     build_vector_store()
