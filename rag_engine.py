@@ -1,62 +1,66 @@
-import faiss
-import pickle
-import numpy as np
-from sentence_transformers import SentenceTransformer
 import os
+import faiss
+import numpy as np
+import pickle
+from sentence_transformers import SentenceTransformer
 
-# ------------------------------
+# ---------------------------------------------------
 # Paths
-# ------------------------------
+# ---------------------------------------------------
 VECTOR_FOLDER = "vector_store"
-INDEX_FILE = os.path.join(VECTOR_FOLDER, "faiss_index.idx")
-TEXTS_FILE = os.path.join(VECTOR_FOLDER, "texts.pkl")
+INDEX_FILE = os.path.join(VECTOR_FOLDER, "faiss_index.bin")
+CHUNKS_FILE = os.path.join(VECTOR_FOLDER, "chunks.pkl")
+MODEL_NAME = "all-MiniLM-L6-v2"   # Small & HF-friendly model
 
-# ------------------------------
-# Load SentenceTransformer model for embedding queries
-# ------------------------------
-MODEL_NAME = "all-MiniLM-L6-v2"  # Lightweight and fast
-model = SentenceTransformer(MODEL_NAME)
+# ---------------------------------------------------
+# Load Embedding Model
+# ---------------------------------------------------
+@st.cache_resource
+def load_encoder():
+    return SentenceTransformer(MODEL_NAME)
 
-# ------------------------------
-# Load FAISS index and texts
-# ------------------------------
-if not os.path.exists(INDEX_FILE) or not os.path.exists(TEXTS_FILE):
-    raise FileNotFoundError(
-        "FAISS index or texts.pkl not found. Please run build_faiss.py first."
-    )
+encoder = load_encoder()
 
-index = faiss.read_index(INDEX_FILE)
+# ---------------------------------------------------
+# Load Vector Index
+# ---------------------------------------------------
+def load_vector_store():
+    if not os.path.exists(INDEX_FILE):
+        raise FileNotFoundError("FAISS index file not found!")
 
-with open(TEXTS_FILE, "rb") as f:
-    texts = pickle.load(f)
+    if not os.path.exists(CHUNKS_FILE):
+        raise FileNotFoundError("Chunks file not found!")
 
-# ------------------------------
-# RAG Retrieval Function
-# ------------------------------
+    # Load FAISS
+    index = faiss.read_index(INDEX_FILE)
+
+    # Load chunks
+    with open(CHUNKS_FILE, "rb") as f:
+        chunks = pickle.load(f)
+
+    return index, chunks
+
+# ---------------------------------------------------
+# Encode Query
+# ---------------------------------------------------
+def embed_text(text: str):
+    emb = encoder.encode([text], convert_to_numpy=True)
+    return np.array(emb).astype("float32")
+
+# ---------------------------------------------------
+# Retrieve Relevant Chunks
+# ---------------------------------------------------
 def retrieve_relevant_chunks(query, top_k=5):
-    """
-    Retrieve top-k most relevant text chunks from PDF data using FAISS.
+    index, chunks = load_vector_store()
 
-    Parameters:
-    - query (str): The text query.
-    - top_k (int): Number of top relevant chunks to return.
+    query_vec = embed_text(query)
 
-    Returns:
-    - List[str]: Top-k relevant text chunks.
-    """
-    if not query.strip():
-        return []
-
-    # Convert query to embedding
-    query_vec = model.encode([query], convert_to_numpy=True)
-
-    # Search FAISS index
+    # Search vectors
     distances, indices = index.search(query_vec, top_k)
 
-    # Retrieve corresponding texts
     results = []
     for idx in indices[0]:
-        if idx < len(texts):
-            results.append(texts[idx])
+        if 0 <= idx < len(chunks):
+            results.append(chunks[idx])
 
     return results
