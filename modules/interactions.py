@@ -8,7 +8,9 @@ import io
 # Diagnosis Module
 # ------------------------------
 def chat_diagnosis_module():
-    st.header("🩺 Clinical Diagnosis Assistant")
+    user_query = st.text_input("Enter your medical query:")
+    if st.button("Get Clinical Answer") and user_query:
+        # Process query...
 
     # Text input
     user_query = st.text_input("Enter your medical query:")
