@@ -1,4 +1,4 @@
-from ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
+from .ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
 
 def chat_diagnosis_module():
     """
