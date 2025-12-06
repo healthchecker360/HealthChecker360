@@ -34,35 +34,49 @@ def text_to_speech(text: str, filename: str = "output.mp3") -> str:
 # ------------------------------
 def query_gemini(query: str) -> str:
     if not GOOGLE_API_KEY:
-        raise ValueError("GEMINI_API_KEY missing in .env")
+        if DEBUG:
+            print("[DEBUG] GEMINI_API_KEY missing in .env")
+        return ""
     url = "https://api.generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText"
     headers = {"Authorization": f"Bearer {GOOGLE_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    result = response.json()
-    return result['candidates'][0]['content']
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result['candidates'][0]['content']
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] Gemini API error: {e}")
+        return ""
 
 # ------------------------------
 # Online AI: Groq (optional fallback)
 # ------------------------------
 def query_groq(query: str) -> str:
     if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY missing in .env")
+        if DEBUG:
+            print("[DEBUG] GROQ_API_KEY missing in .env")
+        return ""
     url = "https://api.groq.ai/v1/generate"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
-    response = requests.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    result = response.json()
-    return result.get('text', '')
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result.get('text', '')
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] Groq API error: {e}")
+        return ""
 
 # ------------------------------
 # Main clinical answer function
 # ------------------------------
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
     """
-    Returns professional medical answer.
+    Returns professional medical answer:
     1. Tries local FAISS vector store first.
     2. Falls back to Gemini API.
     3. Optional: fallback to Groq API if Gemini fails.
@@ -76,26 +90,21 @@ def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
         if faiss_index_file.exists() and chunks_file.exists():
             chunks = retrieve_relevant_chunks(query, top_k=top_k)
             if chunks:
-                answer = "\n\n".join(chunks)
+                answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
     except Exception as e:
         if DEBUG:
             print(f"[DEBUG] FAISS retrieval skipped: {e}")
 
     # Step 2: Online Gemini fallback
     if not answer.strip():
-        try:
-            answer = query_gemini(query)
-        except Exception as e:
-            if DEBUG:
-                print(f"[DEBUG] Gemini API failed: {e}")
+        answer = query_gemini(query)
 
     # Step 3: Groq fallback (if still empty)
     if not answer.strip():
-        try:
-            answer = query_groq(query)
-        except Exception as e:
-            if DEBUG:
-                print(f"[DEBUG] Groq API failed: {e}")
-            answer = "No answer found locally or online. Please consult a healthcare professional."
+        answer = query_groq(query)
+
+    # Step 4: Final fallback
+    if not answer.strip():
+        answer = "No answer found locally or online. Please consult a healthcare professional."
 
     return answer
