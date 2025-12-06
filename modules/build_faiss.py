@@ -1,27 +1,46 @@
 import os
 import pickle
-from sentence_transformers import SentenceTransformer
 import faiss
+from sentence_transformers import SentenceTransformer
+from PyPDF2 import PdfReader
+from docx import Document
 
-# Paths
 VECTOR_FOLDER = os.path.join(os.path.dirname(__file__), "vector_store")
 DOCS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
-
-# Chunk size
 CHUNK_SIZE = 500
-
-# Model
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 # Create vector folder if not exists
 os.makedirs(VECTOR_FOLDER, exist_ok=True)
 
-def read_txt_files(folder_path):
+def read_txt(file_path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def read_pdf(file_path):
+    reader = PdfReader(file_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() or ""
+    return text
+
+def read_docx(file_path):
+    doc = Document(file_path)
+    text = ""
+    for para in doc.paragraphs:
+        text += para.text + "\n"
+    return text
+
+def read_all_docs(folder_path):
     docs = []
     for file in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file)
         if file.endswith(".txt"):
-            with open(os.path.join(folder_path, file), "r", encoding="utf-8") as f:
-                docs.append(f.read())
+            docs.append(read_txt(file_path))
+        elif file.endswith(".pdf"):
+            docs.append(read_pdf(file_path))
+        elif file.endswith(".docx"):
+            docs.append(read_docx(file_path))
     return docs
 
 def chunk_text(text, chunk_size=CHUNK_SIZE):
@@ -34,7 +53,7 @@ def chunk_text(text, chunk_size=CHUNK_SIZE):
     return chunks
 
 def build_vector_store():
-    docs = read_txt_files(DOCS_FOLDER)
+    docs = read_all_docs(DOCS_FOLDER)
     all_chunks = []
     for doc in docs:
         all_chunks.extend(chunk_text(doc))
@@ -48,7 +67,7 @@ def build_vector_store():
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
 
-    # Save chunks with latest protocol
+    # Save chunks
     chunks_path = os.path.join(VECTOR_FOLDER, "chunks.pkl")
     with open(chunks_path, "wb") as f:
         pickle.dump(all_chunks, f, protocol=pickle.HIGHEST_PROTOCOL)
