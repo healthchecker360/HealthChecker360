@@ -85,46 +85,31 @@ def chat_diagnosis_module():
             user_query = text_content
             st.success("File processed successfully.")
 
-    # =======================================================
-    #                  PROCESS THE QUERY
-    # =======================================================
-    if st.button("Get Clinical Answer") and user_query.strip():
-        with st.spinner("Analyzing clinically..."):
+           # Process query
+        if st.button("Get Clinical Answer") and user_query:
+            with st.spinner("Analyzing symptoms and searching medical knowledge..."):
 
-            # Step 1 — Get chunks from vector store
-            try:
-                chunks = retrieve_relevant_chunks(user_query)
-            except:
-                chunks = []
+                # Retrieve RAG chunks
+                retrieved_context = retrieve_relevant_chunks(user_query)
 
-            # Step 2 — Always pass context into AI model
-            retrieved_context = "\n".join(chunks) if chunks else ""
+                # Generate final answer (RAG + LLM fallback)
+                answer = generate_clinical_answer(
+                    user_query=user_query,
+                    retrieved_context=retrieved_context
+                )
 
-            # Step 3 — Generate final clinical-grade response
-            answer = generate_clinical_answer(
-                user_query=user_query,
-                retrieved_context=retrieved_context
-            )
-
-        # =======================================================
-        #                  DISPLAY THE ANSWER
-        # =======================================================
+        # Display Result
         st.subheader("✅ Clinical Answer")
-        st.markdown(
-            answer.replace("\n", "  \n- "),
-            unsafe_allow_html=True
-        )
+        st.markdown(answer.replace("\n", "  \n- "), unsafe_allow_html=True)
 
-        # =======================================================
-        #                DOWNLOAD & AUDIO OPTIONS
-        # =======================================================
+        # Optional Outputs
         col1, col2 = st.columns(2)
 
-        # -------- PDF --------
+        # PDF
         with col1:
             if st.button("Download as PDF"):
-                pdf_path = text_to_pdf(answer)
-                with open(pdf_path, "rb") as f:
+                pdf_file = text_to_pdf(answer)
+                with open(pdf_file, "rb") as f:
                     st.download_button(
                         label="Download PDF",
                         data=f.read(),
@@ -132,8 +117,9 @@ def chat_diagnosis_module():
                         mime="application/pdf"
                     )
 
-        # -------- AUDIO --------
+        # TTS Audio
         with col2:
             if st.button("Play as Voice"):
-                audio_path = text_to_speech(answer)
-                st.audio(audio_path, format="audio/mp3")
+                tts_file = text_to_speech(answer)
+                st.audio(tts_file, format="audio/mp3")
+
