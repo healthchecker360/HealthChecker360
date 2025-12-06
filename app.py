@@ -17,56 +17,55 @@ st.set_page_config(
 )
 
 # ------------------------------
-# Professional UI Styling
+# Professional Medical UI Styling
 # ------------------------------
 st.markdown(
     """
     <style>
         /* Main Background */
         .stApp {
-            background-color: #f5f7fa;
+            background-color: #ffffff !important;
         }
 
         /* Titles */
-        h1, h2, h3, .stMarkdown {
-            color: #0b2e59 !important;
+        h1, h2, h3, h4 {
+            color: #043672 !important;     /* Medical navy blue */
         }
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
-            background-color: #e8eef5;
+            background-color: #f0f4fa !important;  /* Light clinical blue */
         }
 
         /* Buttons */
         .stButton>button {
-            background-color: #0b2e59;
-            color: white;
-            border-radius: 8px;
-            padding: 0.6rem 1rem;
-            font-size: 1rem;
-        }
-        
-        .stButton>button:hover {
-            background-color: #154a85;
+            background-color: #0a5dc2 !important;
+            color: white !important;
+            border-radius: 6px;
+            padding: 8px 18px;
+            font-size: 15px;
+            border: none;
         }
 
-        /* Radio button color */
-        div[role="radiogroup"] > label {
-            color: #0b2e59 !important;
+        .stButton>button:hover {
+            background-color: #074a99 !important;
+            color: #e9f1ff !important;
+        }
+
+        /* Inputs */
+        .stTextInput input, textarea, .stTextArea textarea {
+            border: 1px solid #aac6e8 !important;
+        }
+
+        /* Radio Buttons */
+        div[role="radiogroup"] label {
+            color: #043672 !important;
         }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# ------------------------------
-# Sidebar Navigation
-# ------------------------------
-st.sidebar.title("🩺 HealthChecker360")
-menu = st.sidebar.radio(
-    "Navigate",
-    ["Home", "Drug Info", "Lab Interpretation", "Calculators"]
-)
 
 # ------------------------------
 # Home — Diagnosis Module
