@@ -1,68 +1,64 @@
 import os
+from modules.rag_engine import retrieve_relevant_chunks
+from config import GOOGLE_API_KEY, GROQ_API_KEY, TEMP_PATH, DEBUG
 from fpdf import FPDF
 from gtts import gTTS
-from config import TEMP_PATH, DEBUG
-from modules.rag_engine import retrieve_relevant_chunks, fallback_online_search
 
 # ------------------------------
-# Generate clinical answer
+# Generate Clinical Answer
 # ------------------------------
-def generate_clinical_answer(query, top_k=None):
+def generate_clinical_answer(query, top_k=3):
     """
-    Generates answer from local FAISS documents or fallback online.
+    1. Try to get answer from local docs (RAG)
+    2. If no results, fallback to Gemini/Groq API
     """
-    if top_k is None:
-        from config import TOP_K
-        top_k = TOP_K
-    
-    # Retrieve relevant chunks
     chunks = retrieve_relevant_chunks(query, top_k=top_k)
-    
-    if chunks:
-        # Concatenate chunks for answer
-        answer = "\n\n".join(chunks)
+
+    # If RAG returns placeholder, fallback to online AI
+    if len(chunks) == 1 and "[No local docs found]" in chunks[0]:
         if DEBUG:
-            print(f"Answer from local docs for query '{query}':")
-            print(answer[:500], "...")
-        return answer
-    else:
-        # Fallback to online search if nothing found
-        if DEBUG:
-            print(f"No local docs found. Using online fallback for query '{query}'")
-        return fallback_online_search(query)
+            print("[AI_ENGINE] No local docs found, querying Gemini/Groq API...")
+
+        # Placeholder: call Gemini or Groq API here
+        online_answer = query_online_medical_api(query)
+        return online_answer
+
+    # Otherwise, summarize or compile retrieved chunks
+    answer = "\n\n".join(chunks)
+    return answer
 
 # ------------------------------
-# Convert text to PDF
+# Online Medical API Placeholder
+# ------------------------------
+def query_online_medical_api(query):
+    """
+    Here you can integrate:
+    - Gemini API (Google)
+    - Groq API
+    - Medscape / UpToDate (if API available)
+    """
+    # Example placeholder
+    result = f"[Online search simulated] Answer for: {query}"
+    return result
+
+# ------------------------------
+# Text-to-PDF
 # ------------------------------
 def text_to_pdf(text, filename="output.pdf"):
-    pdf_path = TEMP_PATH / filename
+    path = TEMP_PATH / filename
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font("Arial", size=12)
-    lines = text.split("\n")
-    for line in lines:
-        pdf.multi_cell(0, 5, line)
-    pdf.output(str(pdf_path))
-    return pdf_path
+    for line in text.split("\n"):
+        pdf.multi_cell(0, 8, line)
+    pdf.output(str(path))
+    return str(path)
 
 # ------------------------------
-# Convert text to speech
+# Text-to-Speech
 # ------------------------------
-def text_to_speech(text, filename="output.mp3", lang="en"):
-    audio_path = TEMP_PATH / filename
-    tts = gTTS(text=text, lang=lang)
-    tts.save(str(audio_path))
-    return audio_path
-
-# ------------------------------
-# Example usage
-# ------------------------------
-if __name__ == "__main__":
-    query = "fever"
-    answer = generate_clinical_answer(query)
-    print(answer)
-    pdf_file = text_to_pdf(answer)
-    print(f"PDF saved at: {pdf_file}")
-    audio_file = text_to_speech(answer)
-    print(f"Audio saved at: {audio_file}")
+def text_to_speech(text, filename="output.mp3"):
+    path = TEMP_PATH / filename
+    tts = gTTS(text=text, lang='en')
+    tts.save(str(path))
+    return str(path)
