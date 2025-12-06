@@ -1,33 +1,46 @@
-from pathlib import Path
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 # ------------------------------
-# FOLDER PATHS
+# Load environment variables
 # ------------------------------
-DOCS_FOLDER = Path("docs")              # Your PDF/TXT/DOCX guidelines
-VECTOR_FOLDER = Path("vector_store")    # FAISS vector index & chunks
-
-# FAISS files
-CHUNKS_FILE = VECTOR_FOLDER / "chunks.pkl"
-FAISS_INDEX_FILE = VECTOR_FOLDER / "faiss_index.bin"
+load_dotenv()  # reads .env file in project root
 
 # ------------------------------
-# DRUG DATABASE
+# Paths
 # ------------------------------
-DRUG_DB_PATH = DOCS_FOLDER / "drug_database.csv"
+BASE_DIR = Path(__file__).parent.resolve()
+
+# Folders
+DOCS_PATH = BASE_DIR / "pdfs"             # Place all your guideline files here (pdf, txt, docx)
+VECTOR_PATH = BASE_DIR / "vector_store"   # FAISS index & chunks storage
+TEMP_PATH = BASE_DIR / "temp"             # Generated PDFs, audio
+LOG_PATH = BASE_DIR / "logs"              # Logs for debugging
+
+# Auto-create directories if missing
+for path in [DOCS_PATH, VECTOR_PATH, TEMP_PATH, LOG_PATH]:
+    path.mkdir(parents=True, exist_ok=True)
+
+# FAISS index file
+FAISS_INDEX_PATH = VECTOR_PATH / "faiss_index.bin"
+CHUNKS_FILE_PATH = VECTOR_PATH / "chunks.pkl"
 
 # ------------------------------
-# GENAI / GEMINI / GROQ API CONFIG
+# API KEYS
 # ------------------------------
-# Store API keys in .env file
-GENAI_API_KEY = os.getenv("GENAI_API_KEY")       # Your Gemni / GenAI API Key
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")         # Your Groq API Key
-
-# Base URLs (example)
-GENAI_API_URL = "https://api.genai.com/v1/query"
-GROQ_API_URL = "https://api.groq.com/v1/query"
+GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+OPENFDA_API_KEY = os.getenv("OPENFDA_API_KEY", "")
 
 # ------------------------------
-# RAG / Search Settings
+# RAG Settings
 # ------------------------------
-TOP_K_CHUNKS = 5  # Number of chunks to retrieve from FAISS
+CHUNK_SIZE = 1000           # characters per chunk
+CHUNK_OVERLAP = 200         # overlap to avoid cutting sentences
+TOP_K = 3                   # top K chunks retrieved per query
+
+# ------------------------------
+# Debug Mode
+# ------------------------------
+DEBUG = os.getenv("DEBUG", "True").lower() == "true"
