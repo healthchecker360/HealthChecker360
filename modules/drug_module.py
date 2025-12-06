@@ -1,70 +1,96 @@
-import streamlit as st
-import pandas as pd
-from config import DRUG_DB_PATH, DEBUG
+import os
+import json
+import requests
+from config import DEBUG, OPENFDA_API_KEY, GOOGLE_API_KEY, GROQ_API_KEY, TEMP_PATH
+from modules.ai_engine import query_gemini, query_groq
+
+DRUG_DB_PATH = os.path.join("database", "drugs.json")
 
 # ------------------------------
-# Load Drug Database
+# Load local drug database
 # ------------------------------
-def load_drug_db():
-    """
-    Load the drug database as a pandas DataFrame.
-    """
-    if not DRUG_DB_PATH.exists():
+def load_local_drug_db():
+    if os.path.exists(DRUG_DB_PATH):
+        with open(DRUG_DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    else:
         if DEBUG:
-            st.warning(f"Drug database not found at {DRUG_DB_PATH}. You can add a local CSV or fallback to APIs.")
-        return pd.DataFrame()  # empty df
+            print(f"[DEBUG] Drug database not found at {DRUG_DB_PATH}")
+        return {}
+
+# ------------------------------
+# Query OpenFDA for a drug
+# ------------------------------
+def query_openfda(drug_name: str):
+    url = f"https://api.fda.gov/drug/label.json?search=openfda.brand_name:{drug_name}&limit=1"
     try:
-        df = pd.read_csv(DRUG_DB_PATH)
-        return df
-    except Exception as e:
-        st.error(f"Error loading drug database: {e}")
-        return pd.DataFrame()
-
-# ------------------------------
-# Get Drug Info
-# ------------------------------
-def get_drug_info(drug_name, df):
-    """
-    Search local drug DB for the drug_name.
-    Returns dictionary of drug info if found, else None
-    """
-    if df.empty:
-        return None
-    drug_row = df[df['drug_name'].str.lower() == drug_name.lower()]
-    if not drug_row.empty:
-        return drug_row.iloc[0].to_dict()
-    return None
-
-# ------------------------------
-# Streamlit UI
-# ------------------------------
-def drug_module_ui():
-    st.title("HealthChecker360 - Drug Information Module")
-    st.markdown(
-        "Search for any drug to get MOA, PK/PD, doses, side effects, interactions, and formulations."
-    )
-
-    drug_name = st.text_input("Enter drug name:")
-    df = load_drug_db()
-
-    if st.button("Get Drug Info") and drug_name.strip():
-        info = get_drug_info(drug_name, df)
-        
-        if info:
-            st.subheader(f"Information for {drug_name.title()}")
-            st.write(f"**Mechanism of Action (MOA):** {info.get('MOA', 'N/A')}")
-            st.write(f"**Pharmacodynamics (PD):** {info.get('PD', 'N/A')}")
-            st.write(f"**Pharmacokinetics (PK):** {info.get('PK', 'N/A')}")
-            st.write(f"**Dosage:** {info.get('dosage', 'N/A')}")
-            st.write(f"**Side Effects:** {info.get('side_effects', 'N/A')}")
-            st.write(f"**Interactions:** {info.get('interactions', 'N/A')}")
-            st.write(f"**Brands/Formulations:** {info.get('brands', 'N/A')}")
+        response = requests.get(url)
+        data = response.json()
+        results = data.get("results", [])
+        if results:
+            result = results[0]
+            info = {
+                "name": drug_name,
+                "indications": result.get("indications_and_usage", ["Not available"])[0],
+                "warnings": result.get("warnings", ["Not available"])[0],
+                "dosage": result.get("dosage_and_administration", ["Not available"])[0],
+            }
+            return info
         else:
-            st.warning(f"{drug_name.title()} not found in local database.")
-            st.info("This can be extended to fetch from RxNorm/OpenFDA or other online sources.")
+            return None
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] OpenFDA query failed: {e}")
+        return None
 
 # ------------------------------
-# Direct run
+# Query AI (Gemini or Groq)
 # ------------------------------
-if __name__ == "__main__":
-    drug_module_ui()
+def query_ai_drug_info(drug_name: str):
+    prompt = f"Provide professional medical information about the drug '{drug_name}': indications, dosage, warnings, side effects."
+    try:
+        if GOOGLE_API_KEY:
+            return query_gemini(prompt)
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] Gemini query failed: {e}")
+    try:
+        if GROQ_API_KEY:
+            return query_groq(prompt)
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] Groq query failed: {e}")
+    return f"No detailed AI info available for {drug_name}."
+
+# ------------------------------
+# Main function to get drug info
+# ------------------------------
+def get_drug_info(drug_name: str):
+    local_db = load_local_drug_db()
+    drug_info = local_db.get(drug_name.lower())
+    
+    if drug_info:
+        return drug_info
+
+    # Check OpenFDA
+    drug_info = query_openfda(drug_name)
+    if drug_info:
+        return drug_info
+
+    # Fallback to AI
+    ai_info = query_ai_drug_info(drug_name)
+    return {"name": drug_name, "info": ai_info}
+
+# ------------------------------
+# Streamlit UI function
+# ------------------------------
+def drug_module_ui(drug_name: str):
+    info = get_drug_info(drug_name)
+    text = f"**Drug Name:** {info.get('name')}\n\n"
+    if 'indications' in info:
+        text += f"**Indications:** {info.get('indications')}\n"
+        text += f"**Warnings:** {info.get('warnings')}\n"
+        text += f"**Dosage:** {info.get('dosage')}\n"
+    else:
+        text += f"**Info:** {info.get('info')}\n"
+    return text
