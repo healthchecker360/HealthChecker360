@@ -4,11 +4,10 @@ from modules.interactions import chat_diagnosis_module
 from modules.drug_module import drug_module_ui
 from modules.lab import lab_module_ui
 from modules.calculators import calculators_ui
-from modules.ai_engine import text_to_pdf, text_to_speech
 from config import DEBUG
 
 # ------------------------------
-# Page Config
+# Global Page Configuration
 # ------------------------------
 st.set_page_config(
     page_title="HealthChecker360",
@@ -18,35 +17,85 @@ st.set_page_config(
 )
 
 # ------------------------------
+# Professional UI Styling
+# ------------------------------
+st.markdown(
+    """
+    <style>
+        /* Main Background */
+        .stApp {
+            background-color: #f5f7fa;
+        }
+
+        /* Titles */
+        h1, h2, h3, .stMarkdown {
+            color: #0b2e59 !important;
+        }
+
+        /* Sidebar */
+        section[data-testid="stSidebar"] {
+            background-color: #e8eef5;
+        }
+
+        /* Buttons */
+        .stButton>button {
+            background-color: #0b2e59;
+            color: white;
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .stButton>button:hover {
+            background-color: #154a85;
+        }
+
+        /* Radio button color */
+        div[role="radiogroup"] > label {
+            color: #0b2e59 !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ------------------------------
 # Sidebar Navigation
 # ------------------------------
-st.sidebar.title("HealthChecker360")
+st.sidebar.title("🩺 HealthChecker360")
 menu = st.sidebar.radio(
     "Navigate",
     ["Home", "Drug Info", "Lab Interpretation", "Calculators"]
 )
 
 # ------------------------------
-# Home / Medical Query
+# Home — Diagnosis Module
 # ------------------------------
 if menu == "Home":
     st.title("🩺 Medical Query Checker")
+
     st.write(
-        "Enter your symptoms or disease query below. "
-        "The app will first search its medical database. "
-        "If not found, it will fetch results from online medical resources (Gemini/Groq)."
+        """
+        Quickly analyze medical symptoms, diseases, and clinical queries.
+        The system uses:
+        - Local medical database (FAISS + embeddings)
+        - Online medical LLMs (Gemini / Groq)
+        
+        **Choose your input type and begin.**
+        """
     )
 
-    # Call the new diagnosis module
     chat_diagnosis_module()
 
 # ------------------------------
-# Drug Info Module
+# Drug Information Module
 # ------------------------------
 elif menu == "Drug Info":
     st.header("💊 Drug Information")
+
     drug_name = st.text_input("Enter Drug Name:")
-    if st.button("Get Drug Info") and drug_name:
+
+    if st.button("Get Drug Info") and drug_name.strip():
         result = drug_module_ui(drug_name)
         st.markdown(result)
 
@@ -58,16 +107,14 @@ elif menu == "Lab Interpretation":
     lab_module_ui()
 
 # ------------------------------
-# Calculators Module
+# Medical Calculators Module
 # ------------------------------
 elif menu == "Calculators":
     st.title("📊 Medical & Pharmaceutical Calculators")
     calculators_ui()
 
 # ------------------------------
-# Debug Info (Optional)
+# Debug Info
 # ------------------------------
 if DEBUG:
     st.sidebar.write("**Debug Mode Enabled**")
-
-
