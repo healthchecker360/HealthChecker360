@@ -1,36 +1,39 @@
 import os
-import sys
 import pickle
 from sentence_transformers import SentenceTransformer
 import faiss
+from config import VECTOR_STORE_PATH, SENTENCE_MODEL_NAME, TOP_K
 
-# Add root folder to path
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from config import VECTOR_STORE_PATH
-
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-
+# ==============================
+# LOAD VECTOR STORE
+# ==============================
 def load_vector_store():
     chunks_file = os.path.join(VECTOR_STORE_PATH, "chunks.pkl")
-    index_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
+    faiss_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
 
-    if not os.path.exists(chunks_file) or not os.path.exists(index_file):
-        raise FileNotFoundError("FAISS index or chunks file not found! Run build_faiss.py first.")
+    if not os.path.exists(chunks_file) or not os.path.exists(faiss_file):
+        raise FileNotFoundError(
+            "FAISS index or chunks file not found! Run 'build_faiss.py' first."
+        )
 
-    # Safe loading with protocol compatibility
-    try:
-        with open(chunks_file, "rb") as f:
-            chunks = pickle.load(f)
-    except Exception as e:
-        raise RuntimeError(f"Error loading chunks.pkl: {e}")
+    with open(chunks_file, "rb") as f:
+        chunks = pickle.load(f)
 
-    index = faiss.read_index(index_file)
+    index = faiss.read_index(faiss_file)
     return index, chunks
 
-def retrieve_relevant_chunks(query, top_k=5):
+# ==============================
+# RETRIEVE RELEVANT CHUNKS
+# ==============================
+def retrieve_relevant_chunks(query, top_k=TOP_K):
     index, chunks = load_vector_store()
-    model = SentenceTransformer(MODEL_NAME)
-    query_embedding = model.encode([query])
+
+    # Encode query
+    model = SentenceTransformer(SENTENCE_MODEL_NAME)
+    query_embedding = model.encode([query], convert_to_numpy=True)
+
+    # Search FAISS index
     distances, indices = index.search(query_embedding, top_k)
-    results = [chunks[i] for i in indices[0]]
-    return results
+    relevant_chunks = [chunks[i] for i in indices[0]]
+
+    return relevant_chunks
