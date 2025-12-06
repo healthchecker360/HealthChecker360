@@ -1,84 +1,31 @@
 import os
-import faiss
+import sys
 import pickle
-import numpy as np
 from sentence_transformers import SentenceTransformer
+import faiss
 
-from config import (
-    VECTOR_FOLDER,
-    FAISS_INDEX_PATH,
-    CHUNKS_PATH,
-    EMBED_MODEL,
-    TOP_K
-)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from config import VECTOR_STORE_PATH
 
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-# ------------------------------------------------------
-# Load Embedding Model (loaded once)
-# ------------------------------------------------------
-def load_embedder():
-    """Load the sentence transformer embedding model."""
-    try:
-        model = SentenceTransformer(EMBED_MODEL)
-        return model
-    except Exception as e:
-        raise RuntimeError(f"Error loading embedding model: {e}")
-
-
-# ------------------------------------------------------
-# Load FAISS Index + Chunks
-# ------------------------------------------------------
 def load_vector_store():
-    """Load FAISS index and chunk data."""
-    if not os.path.exists(FAISS_INDEX_PATH):
-        raise FileNotFoundError("FAISS index file not found. Build FAISS first.")
+    chunks_file = os.path.join(VECTOR_STORE_PATH, "chunks.pkl")
+    index_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
 
-    if not os.path.exists(CHUNKS_PATH):
-        raise FileNotFoundError("Chunks file not found. Build FAISS first.")
+    if not os.path.exists(chunks_file) or not os.path.exists(index_file):
+        raise FileNotFoundError("FAISS index or chunks file not found. Run build_faiss.py first.")
 
-    # Load FAISS index
-    try:
-        index = faiss.read_index(FAISS_INDEX_PATH)
-    except Exception as e:
-        raise RuntimeError(f"Error reading FAISS index: {e}")
+    with open(chunks_file, "rb") as f:
+        chunks = pickle.load(f)
 
-    # Load chunks
-    try:
-        with open(CHUNKS_PATH, "rb") as f:
-            chunks = pickle.load(f)
-    except Exception as e:
-        raise RuntimeError(f"Error loading chunks.pkl: {e}")
-
+    index = faiss.read_index(index_file)
     return index, chunks
 
-
-# ------------------------------------------------------
-# Retrieve Relevant Text Chunks
-# ------------------------------------------------------
-def retrieve_relevant_chunks(query: str, top_k: int = TOP_K):
-    """Embed user query → search FAISS → return top K chunks."""
-    
-    embedder = load_embedder()
-
-    # Convert query to vector
-    try:
-        query_vec = embedder.encode([query])
-    except Exception as e:
-        raise RuntimeError(f"Embedding error: {e}")
-
-    # Load index + chunks
+def retrieve_relevant_chunks(query, top_k=5):
     index, chunks = load_vector_store()
-
-    # Search index
-    try:
-        distances, indices = index.search(query_vec, top_k)
-    except Exception as e:
-        raise RuntimeError(f"FAISS search error: {e}")
-
-    # Collect results
-    results = []
-    for idx in indices[0]:
-        if idx < len(chunks):
-            results.append(chunks[idx])
-
+    model = SentenceTransformer(MODEL_NAME)
+    query_embedding = model.encode([query])
+    distances, indices = index.search(query_embedding, top_k)
+    results = [chunks[i] for i in indices[0]]
     return results
