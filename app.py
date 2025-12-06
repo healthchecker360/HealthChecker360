@@ -42,7 +42,7 @@ if menu == "Home":
     if st.button("Get Diagnosis"):
         if user_query.strip():
             with st.spinner("Generating professional medical answer..."):
-                answer = chat_diagnosis_module(user_query)
+                chat_diagnosis_module()  # No arguments
             st.success("Answer Generated ✅")
             st.markdown("### Clinical Answer:")
             st.write(answer)
