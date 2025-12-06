@@ -2,7 +2,7 @@ import os
 from typing import List
 from fpdf import FPDF
 from gtts import gTTS
-from config import GEMINI_API_KEY, OPENAI_API_KEY, DEFAULT_ENGINE, TOP_K
+from .rag_engine import retrieve_relevant_chunks
 from rag_engine import retrieve_relevant_chunks
 
 # ---------------------------
