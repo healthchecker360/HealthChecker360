@@ -10,19 +10,15 @@ from sentence_transformers import SentenceTransformer
 VECTOR_FOLDER = "vector_store"
 INDEX_FILE = os.path.join(VECTOR_FOLDER, "faiss_index.bin")
 CHUNKS_FILE = os.path.join(VECTOR_FOLDER, "chunks.pkl")
-MODEL_NAME = "all-MiniLM-L6-v2"   # Small & HF-friendly model
+MODEL_NAME = "all-MiniLM-L6-v2"   # lightweight model for HF
 
 # ---------------------------------------------------
 # Load Embedding Model
 # ---------------------------------------------------
-@st.cache_resource
-def load_encoder():
-    return SentenceTransformer(MODEL_NAME)
-
-encoder = load_encoder()
+encoder = SentenceTransformer(MODEL_NAME)
 
 # ---------------------------------------------------
-# Load Vector Index
+# Load Vector Store
 # ---------------------------------------------------
 def load_vector_store():
     if not os.path.exists(INDEX_FILE):
@@ -31,17 +27,15 @@ def load_vector_store():
     if not os.path.exists(CHUNKS_FILE):
         raise FileNotFoundError("Chunks file not found!")
 
-    # Load FAISS
     index = faiss.read_index(INDEX_FILE)
 
-    # Load chunks
     with open(CHUNKS_FILE, "rb") as f:
         chunks = pickle.load(f)
 
     return index, chunks
 
 # ---------------------------------------------------
-# Encode Query
+# Encode query text 
 # ---------------------------------------------------
 def embed_text(text: str):
     emb = encoder.encode([text], convert_to_numpy=True)
@@ -55,7 +49,6 @@ def retrieve_relevant_chunks(query, top_k=5):
 
     query_vec = embed_text(query)
 
-    # Search vectors
     distances, indices = index.search(query_vec, top_k)
 
     results = []
