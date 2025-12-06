@@ -1,46 +1,31 @@
-import streamlit as st
-from modules.ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
-from config import TEMP_PATH, DEBUG
+from modules.ai_engine import generate_clinical_answer
+from config import TOP_K, DEBUG
 
-# ------------------------------
-# Chat / Diagnosis module
-# ------------------------------
-def chat_diagnosis_module():
-    st.title("HealthChecker360 - Medical Query Assistant")
-    st.markdown(
-        "Enter your medical query below. The app will provide evidence-based answers "
-        "from your uploaded medical documents or fallback to online resources if needed."
-    )
+def chat_diagnosis_module(query: str) -> str:
+    """
+    Main function to handle user query for diagnosis or medical info.
+    1. Searches local FAISS index first.
+    2. If not found, uses Gemini/Groq APIs as fallback.
+    Returns a professional answer string.
+    """
+    if not query.strip():
+        return "⚠️ Please enter a valid medical query."
 
-    user_query = st.text_input("Enter your medical query:")
+    try:
+        # Call AI engine which handles RAG + online fallback
+        answer = generate_clinical_answer(query, top_k=TOP_K)
 
-    if st.button("Get Answer") and user_query.strip():
-        with st.spinner("Generating answer..."):
-            answer = generate_clinical_answer(user_query)
-        
-        # Display answer
-        st.subheader("Answer:")
-        st.write(answer)
-
-        # Option to download PDF
-        if st.button("Download as PDF"):
-            pdf_file = text_to_pdf(answer, filename=f"{user_query[:20]}.pdf")
-            st.success(f"PDF saved at: {pdf_file}")
-            st.download_button(
-                label="Download PDF",
-                data=open(pdf_file, "rb").read(),
-                file_name=f"{user_query[:20]}.pdf",
-                mime="application/pdf"
+        if not answer or answer.strip() == "":
+            # Fallback message if nothing is returned
+            return (
+                "No information found in local database. "
+                "Attempted online search but could not fetch a result. "
+                "Please consult a healthcare professional."
             )
 
-        # Option to listen as audio
-        if st.button("Listen Answer"):
-            audio_file = text_to_speech(answer, filename=f"{user_query[:20]}.mp3")
-            st.success(f"Audio generated at: {audio_file}")
-            st.audio(audio_file)
+        return answer
 
-# ------------------------------
-# For direct run
-# ------------------------------
-if __name__ == "__main__":
-    chat_diagnosis_module()
+    except Exception as e:
+        if DEBUG:
+            return f"Error generating answer: {e}"
+        return "⚠️ Something went wrong while fetching your answer."
