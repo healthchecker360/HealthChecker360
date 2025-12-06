@@ -3,11 +3,17 @@ import pickle
 from sentence_transformers import SentenceTransformer
 import faiss
 
-VECTOR_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "vector_store")
+# Paths
+VECTOR_FOLDER = os.path.join(os.path.dirname(__file__), "vector_store")
 DOCS_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs")
+
+# Chunk size
 CHUNK_SIZE = 500
+
+# Model
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+# Create vector folder if not exists
 os.makedirs(VECTOR_FOLDER, exist_ok=True)
 
 def read_txt_files(folder_path):
@@ -42,10 +48,15 @@ def build_vector_store():
     index = faiss.IndexFlatL2(dimension)
     index.add(embeddings)
 
-    with open(os.path.join(VECTOR_FOLDER, "chunks.pkl"), "wb") as f:
-        pickle.dump(all_chunks, f)
+    # Save chunks with latest protocol
+    chunks_path = os.path.join(VECTOR_FOLDER, "chunks.pkl")
+    with open(chunks_path, "wb") as f:
+        pickle.dump(all_chunks, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    faiss.write_index(index, os.path.join(VECTOR_FOLDER, "faiss_index.bin"))
+    # Save FAISS index
+    index_path = os.path.join(VECTOR_FOLDER, "faiss_index.bin")
+    faiss.write_index(index, index_path)
+
     print("Vector store built successfully!")
 
 if __name__ == "__main__":
