@@ -1,0 +1,12 @@
+{
+    "Paracetamol": {
+        "class": "Analgesic",
+        "dose": "500-1000mg every 6-8 hours",
+        "side_effects": ["Nausea", "Liver toxicity in overdose"]
+    },
+    "Amoxicillin": {
+        "class": "Antibiotic",
+        "dose": "500mg every 8 hours",
+        "side_effects": ["Diarrhea", "Rash", "Allergic reaction"]
+    }
+}
