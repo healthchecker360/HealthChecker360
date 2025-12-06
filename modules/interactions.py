@@ -5,16 +5,20 @@ from PIL import Image
 import io
 
 def chat_diagnosis_module():
+    import streamlit as st
+    from modules.ai_engine import generate_clinical_answer
+    from modules.rag_engine import retrieve_relevant_chunks
+
     st.header("🩺 Clinical Diagnosis Assistant")
-    
     user_query = st.text_input("Enter your medical query:")
-    
+
     if st.button("Get Clinical Answer") and user_query:
         chunks = retrieve_relevant_chunks(user_query)
         if chunks:
             answer = generate_clinical_answer(user_query, chunks=chunks)
         else:
             answer = generate_clinical_answer(user_query, online_fallback=True)
+
         st.subheader("Clinical Answer:")
         st.markdown(answer)
 
