@@ -1,23 +1,19 @@
 # modules/ai_engine.py
 import os
-import pickle
-from pathlib import Path
 import requests
 from gtts import gTTS
 from fpdf import FPDF
 from config import VECTOR_STORE_PATH, TEMP_PATH, TOP_K, DEBUG, GEMINI_API_KEY, GEMINI_API_URL, GROQ_API_KEY, GROQ_API_URL
 from modules.rag_engine import retrieve_relevant_chunks
 
-# ------------------------------ PDF generation (Unicode safe) ------------------------------
+# ------------------------------ PDF generation ------------------------------
 def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf_file = TEMP_PATH / filename
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", '', 12)  # use '' style for Unicode-safe
+    pdf.set_font("Arial", size=12)
     for line in text.split("\n"):
-        # remove unsupported characters
-        safe_line = line.encode('latin-1', errors='replace').decode('latin-1')
-        pdf.multi_cell(0, 8, safe_line)
+        pdf.multi_cell(0, 8, line.encode('latin-1', 'replace').decode('latin-1'))
     pdf.output(str(pdf_file))
     return str(pdf_file)
 
@@ -30,73 +26,59 @@ def text_to_speech(text: str, filename: str = "output.mp3") -> str:
 
 # ------------------------------ Gemini API ------------------------------
 def query_gemini(query: str) -> str:
-    if not GEMINI_API_KEY or not GEMINI_API_URL:
-        if DEBUG:
-            print("[DEBUG] GEMINI_API_KEY or URL missing in .env")
+    if not GEMINI_API_KEY:
+        if DEBUG: print("[DEBUG] GEMINI_API_KEY missing in .env")
         return ""
+    url = f"{GEMINI_API_URL}text-bison-001:generateText"
     headers = {"Authorization": f"Bearer {GEMINI_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
     try:
-        response = requests.post(GEMINI_API_URL, headers=headers, json=data, timeout=20)
+        response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result.get('candidates', [{}])[0].get('content', '').strip()
+        return result['candidates'][0]['content']
     except Exception as e:
-        if DEBUG:
-            print(f"[DEBUG] Gemini API error: {e}")
+        if DEBUG: print(f"[DEBUG] Gemini API error: {e}")
         return ""
 
 # ------------------------------ Groq API ------------------------------
 def query_groq(query: str) -> str:
-    if not GROQ_API_KEY or not GROQ_API_URL:
-        if DEBUG:
-            print("[DEBUG] GROQ_API_KEY or URL missing in .env")
+    if not GROQ_API_KEY:
+        if DEBUG: print("[DEBUG] GROQ_API_KEY missing in .env")
         return ""
+    url = f"{GROQ_API_URL}generate"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
     try:
-        response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=20)
+        response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result.get('text', '').strip()
+        return result.get('text', '')
     except Exception as e:
-        if DEBUG:
-            print(f"[DEBUG] Groq API error: {e}")
+        if DEBUG: print(f"[DEBUG] Groq API error: {e}")
         return ""
 
-# ------------------------------ Main clinical answer function ------------------------------
+# ------------------------------ Main clinical answer ------------------------------
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
-    """
-    Returns professional medical answer:
-    1. Tries local FAISS vector store first.
-    2. Falls back to Gemini API.
-    3. Falls back to Groq API if needed.
-    """
     answer = ""
 
-    # Step 1: Local FAISS retrieval
+    # Step 1: Try local FAISS
     try:
         chunks = retrieve_relevant_chunks(query, top_k=top_k)
         if chunks:
-            answer = "\n\n".join([f"• {c.strip()}" for c in chunks])
-        else:
-            if DEBUG:
-                print("[DEBUG] No local FAISS chunks found.")
+            answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
     except Exception as e:
-        if DEBUG:
-            print(f"[DEBUG] FAISS retrieval failed: {e}")
+        if DEBUG: print(f"[DEBUG] FAISS retrieval skipped: {e}")
 
     # Step 2: Gemini API fallback
     if not answer.strip():
         answer = query_gemini(query)
-        if DEBUG:
-            print("[DEBUG] Gemini API returned:", answer)
+        if DEBUG: print("[DEBUG] Using Gemini API fallback")
 
     # Step 3: Groq API fallback
     if not answer.strip():
         answer = query_groq(query)
-        if DEBUG:
-            print("[DEBUG] Groq API returned:", answer)
+        if DEBUG: print("[DEBUG] Using Groq API fallback")
 
     # Step 4: Final fallback
     if not answer.strip():
