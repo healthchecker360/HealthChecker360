@@ -1,64 +1,76 @@
 import os
-from modules.rag_engine import retrieve_relevant_chunks
-from config import GOOGLE_API_KEY, GROQ_API_KEY, TEMP_PATH, DEBUG
-from fpdf import FPDF
+import pickle
+from pathlib import Path
 from gtts import gTTS
+from fpdf import FPDF
+from config import VECTOR_PATH, TEMP_PATH, TOP_K, DEBUG, GOOGLE_API_KEY, GROQ_API_KEY
+from modules.rag_engine import retrieve_relevant_chunks
 
 # ------------------------------
-# Generate Clinical Answer
+# Helper: Generate PDF from text
 # ------------------------------
-def generate_clinical_answer(query, top_k=3):
-    """
-    1. Try to get answer from local docs (RAG)
-    2. If no results, fallback to Gemini/Groq API
-    """
-    chunks = retrieve_relevant_chunks(query, top_k=top_k)
-
-    # If RAG returns placeholder, fallback to online AI
-    if len(chunks) == 1 and "[No local docs found]" in chunks[0]:
-        if DEBUG:
-            print("[AI_ENGINE] No local docs found, querying Gemini/Groq API...")
-
-        # Placeholder: call Gemini or Groq API here
-        online_answer = query_online_medical_api(query)
-        return online_answer
-
-    # Otherwise, summarize or compile retrieved chunks
-    answer = "\n\n".join(chunks)
-    return answer
-
-# ------------------------------
-# Online Medical API Placeholder
-# ------------------------------
-def query_online_medical_api(query):
-    """
-    Here you can integrate:
-    - Gemini API (Google)
-    - Groq API
-    - Medscape / UpToDate (if API available)
-    """
-    # Example placeholder
-    result = f"[Online search simulated] Answer for: {query}"
-    return result
-
-# ------------------------------
-# Text-to-PDF
-# ------------------------------
-def text_to_pdf(text, filename="output.pdf"):
-    path = TEMP_PATH / filename
+def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
+    pdf_file = TEMP_PATH / filename
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     for line in text.split("\n"):
         pdf.multi_cell(0, 8, line)
-    pdf.output(str(path))
-    return str(path)
+    pdf.output(str(pdf_file))
+    return str(pdf_file)
 
 # ------------------------------
-# Text-to-Speech
+# Helper: Generate speech from text
 # ------------------------------
-def text_to_speech(text, filename="output.mp3"):
-    path = TEMP_PATH / filename
-    tts = gTTS(text=text, lang='en')
-    tts.save(str(path))
-    return str(path)
+def text_to_speech(text: str, filename: str = "output.mp3") -> str:
+    audio_file = TEMP_PATH / filename
+    tts = gTTS(text=text, lang="en")
+    tts.save(str(audio_file))
+    return str(audio_file)
+
+# ------------------------------
+# Helper: Call online AI (Gemini/Groq)
+# ------------------------------
+def call_gemini_or_groq_api(query: str) -> str:
+    """
+    Placeholder function to call Gemini/Groq API.
+    Replace with actual API integration.
+    """
+    # Example pseudo-code:
+    # response = gemini_client.ask(query)
+    # return response.text
+    return f"[Online AI Answer Placeholder for query: {query}]"
+
+# ------------------------------
+# Main function: generate clinical answer
+# ------------------------------
+def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
+    """
+    Returns a professional medical answer.
+    1. Tries local FAISS vector store first.
+    2. Falls back to Gemini/Groq online AI if local search fails.
+    """
+    answer = ""
+
+    # Step 1: Try local FAISS
+    try:
+        faiss_index_file = VECTOR_PATH / "faiss_index.bin"
+        chunks_file = VECTOR_PATH / "chunks.pkl"
+        if faiss_index_file.exists() and chunks_file.exists():
+            retrieved_chunks = retrieve_relevant_chunks(query, top_k=top_k)
+            if retrieved_chunks:
+                answer = "\n\n".join(retrieved_chunks)
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] FAISS retrieval skipped: {e}")
+
+    # Step 2: Online AI fallback
+    if not answer.strip():
+        try:
+            answer = call_gemini_or_groq_api(query)
+        except Exception as e:
+            if DEBUG:
+                print(f"[DEBUG] Online AI fallback failed: {e}")
+            answer = "No answer found locally or online. Please consult a healthcare professional."
+
+    return answer
