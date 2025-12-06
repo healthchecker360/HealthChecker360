@@ -1,95 +1,87 @@
 import os
 import pickle
-from config import VECTOR_STORE_PATH, DOCS_PATH, CHUNK_SIZE, SENTENCE_MODEL_NAME, SUPPORTED_DOCS
-from sentence_transformers import SentenceTransformer
 import faiss
+from sentence_transformers import SentenceTransformer
+from pathlib import Path
 from PyPDF2 import PdfReader
-from docx import Document
+import docx
 
-# ==============================
-# HELPER FUNCTIONS TO READ FILES
-# ==============================
+# ------------------------------
+# PATHS
+# ------------------------------
+DOCS_PATH = Path("docs")
+VECTOR_PATH = Path("vector_store")
+VECTOR_PATH.mkdir(exist_ok=True)
 
-def read_txt(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        return f.read()
+CHUNKS_FILE = VECTOR_PATH / "chunks.pkl"
+INDEX_FILE = VECTOR_PATH / "faiss_index.bin"
 
-def read_pdf(file_path):
-    text = ""
-    reader = PdfReader(file_path)
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
-    return text
+# ------------------------------
+# LOAD DOCS
+# ------------------------------
+def load_documents():
+    documents = []
+    for file in DOCS_PATH.iterdir():
+        if file.suffix.lower() == ".pdf":
+            reader = PdfReader(file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
+            documents.append(text)
+        elif file.suffix.lower() == ".txt":
+            with open(file, "r", encoding="utf-8") as f:
+                documents.append(f.read())
+        elif file.suffix.lower() == ".docx":
+            doc = docx.Document(file)
+            text = "\n".join([para.text for para in doc.paragraphs])
+            documents.append(text)
+    return documents
 
-def read_docx(file_path):
-    doc = Document(file_path)
-    return "\n".join([para.text for para in doc.paragraphs])
+# ------------------------------
+# SPLIT INTO CHUNKS
+# ------------------------------
+def split_text(text, chunk_size=500, overlap=50):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += chunk_size - overlap
+    return chunks
 
-def read_all_docs(folder_path):
-    """Read all supported documents from the folder"""
-    all_texts = []
-    for file in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, file)
-        ext = os.path.splitext(file)[1].lower()
-        if ext not in SUPPORTED_DOCS:
-            continue
-        if ext == ".txt":
-            all_texts.append(read_txt(file_path))
-        elif ext == ".pdf":
-            all_texts.append(read_pdf(file_path))
-        elif ext == ".docx":
-            all_texts.append(read_docx(file_path))
-    return all_texts
-
-# ==============================
-# CHUNKING FUNCTION
-# ==============================
-def chunk_text(text, chunk_size=CHUNK_SIZE):
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-
-# ==============================
-# BUILD VECTOR STORE
-# ==============================
-def build_vector_store():
-    print("Reading documents from:", DOCS_PATH)
-    docs = read_all_docs(DOCS_PATH)
+# ------------------------------
+# BUILD FAISS INDEX
+# ------------------------------
+def build_faiss_index():
+    print("Loading documents...")
+    documents = load_documents()
     all_chunks = []
-    for doc in docs:
-        all_chunks.extend(chunk_text(doc))
-    
-    if not all_chunks:
-        raise ValueError("No documents found in 'docs/' folder or unsupported file types!")
 
-    print(f"Total chunks created: {len(all_chunks)}")
+    for doc in documents:
+        chunks = split_text(doc)
+        all_chunks.extend(chunks)
 
-    # Load model
-    model = SentenceTransformer(SENTENCE_MODEL_NAME)
-    print("Generating embeddings...")
-    embeddings = model.encode(all_chunks, convert_to_numpy=True, show_progress_bar=True)
+    print(f"Total chunks: {len(all_chunks)}")
 
-    # Create FAISS index
-    dimension = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dimension)
+    # Create embeddings
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    embeddings = model.encode(all_chunks, show_progress_bar=True)
+    embeddings = embeddings.astype("float32")
+
+    # Build FAISS index
+    dim = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dim)
     index.add(embeddings)
-    print("FAISS index created with dimension:", dimension)
 
-    # Save chunks
-    chunks_file = os.path.join(VECTOR_STORE_PATH, "chunks.pkl")
-    with open(chunks_file, "wb") as f:
-        pickle.dump(all_chunks, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print("Chunks saved to:", chunks_file)
+    # Save
+    with open(CHUNKS_FILE, "wb") as f:
+        pickle.dump(all_chunks, f)
+    faiss.write_index(index, str(INDEX_FILE))
+    print("FAISS index and chunks saved successfully.")
 
-    # Save FAISS index
-    faiss_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
-    faiss.write_index(index, faiss_file)
-    print("FAISS index saved to:", faiss_file)
-
-    print("Vector store build completed successfully!")
-
-# ==============================
-# MAIN EXECUTION
-# ==============================
+# ------------------------------
+# RUN
+# ------------------------------
 if __name__ == "__main__":
-    build_vector_store()
+    build_faiss_index()
