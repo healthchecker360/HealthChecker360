@@ -1,37 +1,66 @@
 import streamlit as st
+import pandas as pd
+from config import DEBUG
 
 # ------------------------------
-# LAB MODULE UI
+# Sample Lab Reference Data
+# ------------------------------
+LAB_REF_DATA = {
+    "Hemoglobin": {"unit": "g/dL", "normal_male": (13.5, 17.5), "normal_female": (12.0, 15.5)},
+    "WBC": {"unit": "10^3/uL", "normal": (4.0, 11.0)},
+    "Platelets": {"unit": "10^3/uL", "normal": (150, 450)},
+    "Creatinine": {"unit": "mg/dL", "normal": (0.7, 1.3)},
+    "BUN": {"unit": "mg/dL", "normal": (7, 20)},
+    "ALT": {"unit": "U/L", "normal": (7, 56)},
+    "AST": {"unit": "U/L", "normal": (10, 40)},
+    "TSH": {"unit": "uIU/mL", "normal": (0.4, 4.0)},
+    "Troponin": {"unit": "ng/mL", "normal": (0, 0.04)}
+}
+
+# ------------------------------
+# Lab Interpretation
+# ------------------------------
+def interpret_lab(test_name, value, gender=None):
+    ref = LAB_REF_DATA.get(test_name)
+    if not ref:
+        return f"No reference data available for {test_name}."
+
+    low, high = ref.get("normal", (None, None))
+    # Gender-specific ranges
+    if gender and f"normal_{gender.lower()}" in ref:
+        low, high = ref[f"normal_{gender.lower()}"]
+
+    if low is None or high is None:
+        return "Reference range not defined."
+
+    if value < low:
+        return f"{test_name}: {value} {ref['unit']} (Low) – Possible causes: anemia, blood loss, malnutrition."
+    elif value > high:
+        return f"{test_name}: {value} {ref['unit']} (High) – Possible causes: infection, dehydration, liver/kidney dysfunction."
+    else:
+        return f"{test_name}: {value} {ref['unit']} (Normal)."
+
+# ------------------------------
+# Streamlit UI
 # ------------------------------
 def lab_module_ui():
     st.title("HealthChecker360 - Lab Test Interpretation")
-    st.write("Enter your lab values to get a basic interpretation.")
+    st.markdown(
+        "Enter your lab test results to get a quick interpretation and suggestions."
+    )
 
-    # Example labs
-    labs = {
-        "Hemoglobin (g/dL)": (12, 16),
-        "WBC (10^3/µL)": (4, 11),
-        "Platelets (10^3/µL)": (150, 450),
-        "Creatinine (mg/dL)": (0.6, 1.3),
-        "BUN (mg/dL)": (7, 20),
-        "ALT (U/L)": (7, 56),
-        "AST (U/L)": (10, 40),
-        "TSH (µIU/mL)": (0.4, 4.0),
-        "Blood Glucose Fasting (mg/dL)": (70, 100),
-        "HbA1c (%)": (4, 5.6)
-    }
+    test_name = st.selectbox("Select Test:", list(LAB_REF_DATA.keys()))
+    value = st.number_input("Enter Value:", value=0.0, step=0.1)
+    gender = None
+    if test_name in ["Hemoglobin"]:
+        gender = st.radio("Gender:", ["Male", "Female"])
 
-    user_values = {}
-    for lab_name, (low, high) in labs.items():
-        user_values[lab_name] = st.number_input(f"{lab_name} [{low}-{high}]", min_value=0.0)
+    if st.button("Interpret"):
+        result = interpret_lab(test_name, value, gender)
+        st.success(result)
 
-    if st.button("Interpret Labs"):
-        st.subheader("Interpretation Results")
-        for lab_name, (low, high) in labs.items():
-            value = user_values[lab_name]
-            if value < low:
-                st.markdown(f"**{lab_name}:** Low ({value})")
-            elif value > high:
-                st.markdown(f"**{lab_name}:** High ({value})")
-            else:
-                st.markdown(f"**{lab_name}:** Normal ({value})")
+# ------------------------------
+# Direct run
+# ------------------------------
+if __name__ == "__main__":
+    lab_module_ui()
