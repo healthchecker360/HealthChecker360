@@ -7,7 +7,7 @@ from modules.calculators import calculators_ui
 from config import DEBUG
 
 # ------------------------------
-# Page Config
+# Global Page Configuration
 # ------------------------------
 st.set_page_config(
     page_title="HealthChecker360",
@@ -17,73 +17,40 @@ st.set_page_config(
 )
 
 # ------------------------------
-# Dark Mode Professional Styling
+# Dark Theme & Professional Styling
 # ------------------------------
 st.markdown(
     """
     <style>
-        /* App Background */
         .stApp {
-            background-color: #1e1e2f !important;  /* dark charcoal */
-            color: #ffffff;
-        }
-
-        /* Titles */
-        h1, h2, h3 {
-            color: #4fc3f7 !important;  /* bright cyan-blue */
-        }
-
-        /* Sidebar */
-        section[data-testid="stSidebar"] {
-            background-color: #2b2b3f !important;
+            background-color: #0d1117 !important;
             color: #ffffff !important;
         }
-        section[data-testid="stSidebar"] * {
+        h1, h2, h3, h4 {
+            color: #00aaff !important;
+        }
+        .stTextInput>div>input, .stTextArea>div>textarea {
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
-            font-weight: 600;
+            border: 1px solid #00aaff !important;
         }
-
-        /* Inputs */
-        .stTextInput input,
-        .stTextArea textarea {
-            background-color: #2b2b3f !important;
-            color: #ffffff !important;
-            border: 1px solid #4fc3f7 !important;
-            border-radius: 8px !important;
-        }
-
-        /* Radio Buttons */
-        div[role="radiogroup"] label {
-            color: #4fc3f7 !important;
-            font-weight: 600;
-        }
-
-        /* Buttons */
         .stButton>button {
-            background-color: #4fc3f7 !important;
-            color: #1e1e2f !important;
-            border-radius: 6px !important;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: 600;
-            border: none;
+            background-color: #00aaff !important;
+            color: #000000 !important;
+            border-radius: 6px;
+            padding: 6px 18px;
+            font-size: 15px;
         }
         .stButton>button:hover {
-            background-color: #1da1f2 !important;
+            background-color: #0077aa !important;
             color: #ffffff !important;
         }
-
-        /* Markdown / normal text */
-        .stMarkdown p, .stText {
-            color: #d0d0d0 !important;
-            font-size: 16px !important;
+        section[data-testid="stSidebar"] {
+            background-color: #111827 !important;
+            color: #ffffff !important;
         }
-
-        /* Info boxes */
-        .stInfo {
-            background-color: #2b2b3f !important;
-            color: #4fc3f7 !important;
-            border-left: 5px solid #4fc3f7;
+        div[role="radiogroup"] label {
+            color: #00aaff !important;
         }
     </style>
     """,
@@ -100,18 +67,21 @@ menu = st.sidebar.radio(
 )
 
 # ------------------------------
-# Home — Diagnosis Module
+# Home — Diagnostic / Clinical Query
 # ------------------------------
 if menu == "Home":
     st.title("🩺 Medical Query Checker")
     st.write(
         """
-        Enter your symptoms or medical questions below.
-        The system uses a local medical database (FAISS) and online LLMs for accurate answers.
+        Quickly analyze medical symptoms, diseases, and clinical queries.
+        The system uses:
+        - Local medical database (FAISS + embeddings)
+        - Online medical LLMs (Gemini / Groq)
+        
+        **Choose your input type and begin.**
         """
     )
-
-    # Call the interactive clinical diagnosis module
+    # Call the diagnostic module
     chat_diagnosis_module()
 
 # ------------------------------
@@ -122,7 +92,7 @@ elif menu == "Drug Info":
     drug_name = st.text_input("Enter Drug Name:")
     if st.button("Get Drug Info") and drug_name.strip():
         result = drug_module_ui(drug_name)
-        st.markdown(result, unsafe_allow_html=True)
+        st.markdown(result)
 
 # ------------------------------
 # Lab Interpretation Module
@@ -139,7 +109,7 @@ elif menu == "Calculators":
     calculators_ui()
 
 # ------------------------------
-# Debug Mode Indicator
+# Debug Info
 # ------------------------------
 if DEBUG:
     st.sidebar.write("**Debug Mode Enabled**")
