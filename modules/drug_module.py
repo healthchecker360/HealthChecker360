@@ -1,45 +1,70 @@
 import streamlit as st
 import pandas as pd
-from pathlib import Path
+from config import DRUG_DB_PATH, DEBUG
 
 # ------------------------------
-# CONFIG
+# Load Drug Database
 # ------------------------------
-DRUG_DB_PATH = Path("docs/drug_database.csv")  # Example CSV file with drug info
-
-# ------------------------------
-# LOAD DRUG DATA
-# ------------------------------
-def load_drug_data():
-    if DRUG_DB_PATH.exists():
+def load_drug_db():
+    """
+    Load the drug database as a pandas DataFrame.
+    """
+    if not DRUG_DB_PATH.exists():
+        if DEBUG:
+            st.warning(f"Drug database not found at {DRUG_DB_PATH}. You can add a local CSV or fallback to APIs.")
+        return pd.DataFrame()  # empty df
+    try:
         df = pd.read_csv(DRUG_DB_PATH)
         return df
-    else:
-        st.warning("Drug database not found. Please place 'drug_database.csv' in docs folder.")
-        return pd.DataFrame()  # Empty DataFrame
+    except Exception as e:
+        st.error(f"Error loading drug database: {e}")
+        return pd.DataFrame()
 
 # ------------------------------
-# DRUG MODULE UI
+# Get Drug Info
+# ------------------------------
+def get_drug_info(drug_name, df):
+    """
+    Search local drug DB for the drug_name.
+    Returns dictionary of drug info if found, else None
+    """
+    if df.empty:
+        return None
+    drug_row = df[df['drug_name'].str.lower() == drug_name.lower()]
+    if not drug_row.empty:
+        return drug_row.iloc[0].to_dict()
+    return None
+
+# ------------------------------
+# Streamlit UI
 # ------------------------------
 def drug_module_ui():
-    st.title("HealthChecker360 - Drug Module")
-    st.write("Search for drug information including MOA, dosage, side effects, and interactions.")
+    st.title("HealthChecker360 - Drug Information Module")
+    st.markdown(
+        "Search for any drug to get MOA, PK/PD, doses, side effects, interactions, and formulations."
+    )
 
-    df = load_drug_data()
-    if df.empty:
-        return
+    drug_name = st.text_input("Enter drug name:")
+    df = load_drug_db()
 
-    drug_list = df['Drug Name'].tolist()
-    selected_drug = st.selectbox("Select Drug", [""] + drug_list)
+    if st.button("Get Drug Info") and drug_name.strip():
+        info = get_drug_info(drug_name, df)
+        
+        if info:
+            st.subheader(f"Information for {drug_name.title()}")
+            st.write(f"**Mechanism of Action (MOA):** {info.get('MOA', 'N/A')}")
+            st.write(f"**Pharmacodynamics (PD):** {info.get('PD', 'N/A')}")
+            st.write(f"**Pharmacokinetics (PK):** {info.get('PK', 'N/A')}")
+            st.write(f"**Dosage:** {info.get('dosage', 'N/A')}")
+            st.write(f"**Side Effects:** {info.get('side_effects', 'N/A')}")
+            st.write(f"**Interactions:** {info.get('interactions', 'N/A')}")
+            st.write(f"**Brands/Formulations:** {info.get('brands', 'N/A')}")
+        else:
+            st.warning(f"{drug_name.title()} not found in local database.")
+            st.info("This can be extended to fetch from RxNorm/OpenFDA or other online sources.")
 
-    if selected_drug:
-        drug_info = df[df['Drug Name'] == selected_drug].iloc[0]
-
-        st.subheader(f"{selected_drug} Information")
-        st.markdown(f"**Mechanism of Action (MOA):** {drug_info.get('MOA', 'N/A')}")
-        st.markdown(f"**Indications:** {drug_info.get('Indications', 'N/A')}")
-        st.markdown(f"**Dosage:** {drug_info.get('Dosage', 'N/A')}")
-        st.markdown(f"**Side Effects:** {drug_info.get('Side Effects', 'N/A')}")
-        st.markdown(f"**Warnings / Precautions:** {drug_info.get('Warnings', 'N/A')}")
-        st.markdown(f"**Drug Interactions:** {drug_info.get('Interactions', 'N/A')}")
-        st.markdown(f"**Brand Names:** {drug_info.get('Brand Names', 'N/A')}")
+# ------------------------------
+# Direct run
+# ------------------------------
+if __name__ == "__main__":
+    drug_module_ui()
