@@ -1,97 +1,102 @@
 import streamlit as st
-from PIL import Image
-import os
-
-# Import our modules
 from interactions import chat_diagnosis_module
 from drug_module import drug_module_ui
+from calculators import (
+    calculate_bmi, calculate_bsa, calculate_gfr,
+    calculate_dose, calculate_iv_rate
+)
 from lab import lab_module_ui
-from calculators import calculators_module_ui
 
-# ------------------------------
-# App Config
-# ------------------------------
+# -----------------------------
+# App Configuration
+# -----------------------------
 st.set_page_config(
-    page_title="Health Checker 365",
-    page_icon="🩺",
-    layout="wide"
+    page_title="HealthChecker 360",
+    page_icon="💊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Professional color palette
-PRIMARY_COLOR = "#0B3954"    # Dark Blue
-SECONDARY_COLOR = "#BFD7EA"  # Light Blue
-ACCENT_COLOR = "#FF6663"     # Accent Red
+st.title("💊 HealthChecker 360")
+st.markdown("Your AI Medical Assistant: Clinical, Pharma, and Lab Support")
 
-st.markdown(f"""
-    <style>
-        .stApp {{
-            background-color: {SECONDARY_COLOR};
-            color: {PRIMARY_COLOR};
-        }}
-        .stButton>button {{
-            background-color: {PRIMARY_COLOR};
-            color: white;
-        }}
-        .stSelectbox>div>div {{
-            background-color: white;
-            color: {PRIMARY_COLOR};
-        }}
-        .stTextInput>div>input {{
-            background-color: white;
-            color: {PRIMARY_COLOR};
-        }}
-        .stTextArea>div>textarea {{
-            background-color: white;
-            color: {PRIMARY_COLOR};
-        }}
-    </style>
-""", unsafe_allow_html=True)
-
-# ------------------------------
-# Logo
-# ------------------------------
-logo_path = "logo.png"  # Replace with your logo file
-if os.path.exists(logo_path):
-    logo = Image.open(logo_path)
-    st.image(logo, width=150)
-else:
-    st.markdown("<h1 style='color:#0B3954;'>🩺 Health Checker 365</h1>", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# ------------------------------
+# -----------------------------
 # Sidebar Navigation
-# ------------------------------
-st.sidebar.title("📌 Modules")
-module = st.sidebar.radio("Select Module:", 
-                          ["💬 Chat & Diagnosis", "💊 Drug Info", "🧪 Lab Interpretation", "🧮 Calculators"])
+# -----------------------------
+st.sidebar.title("Navigation")
+menu_options = [
+    "Home",
+    "Symptom Checker (AI Diagnosis)",
+    "Drug Information",
+    "Calculators",
+    "Lab Interpretation"
+]
+choice = st.sidebar.radio("Go to", menu_options)
 
-# Optional: show module description
-if module == "💬 Chat & Diagnosis":
-    st.sidebar.info("Ask clinical questions, upload images or voice, get targeted diagnosis + treatment suggestions.")
-elif module == "💊 Drug Info":
-    st.sidebar.info("Get concise drug monographs: Dose, MOA, Warnings, Side effects, Formulations.")
-elif module == "🧪 Lab Interpretation":
-    st.sidebar.info("Enter lab values or upload lab PDFs for concise interpretation + next steps.")
-elif module == "🧮 Calculators":
-    st.sidebar.info("Clinical & Pharma calculators with explanation. BMI, BSA, GFR, more.")
+# -----------------------------
+# HOME PAGE
+# -----------------------------
+if choice == "Home":
+    st.subheader("Welcome to HealthChecker 360")
+    st.write("""
+    - AI-assisted diagnosis & clinical guidance  
+    - Drug information & safety checks  
+    - Clinical & pharmaceutical calculators  
+    - Lab interpretation & recommendations  
+    """)
 
-st.markdown("##")
+# -----------------------------
+# SYMPTOM CHECKER / AI DIAGNOSIS
+# -----------------------------
+elif choice == "Symptom Checker (AI Diagnosis)":
+    st.subheader("Symptom Checker & AI Clinical Diagnosis")
+    chat_diagnosis_module()  # RAG + AI engine handles queries
 
-# ------------------------------
-# Render Module
-# ------------------------------
-if module == "💬 Chat & Diagnosis":
-    chat_diagnosis_module()
-elif module == "💊 Drug Info":
-    drug_module_ui(st)
-elif module == "🧪 Lab Interpretation":
-    lab_module_ui()
-elif module == "🧮 Calculators":
-    calculators_module_ui()
+# -----------------------------
+# DRUG INFORMATION MODULE
+# -----------------------------
+elif choice == "Drug Information":
+    drug_module_ui()  # Streamlit-ready drug lookup UI
 
-# ------------------------------
-# Footer
-# ------------------------------
-st.markdown("---")
-st.markdown("<p style='text-align:center;color:#0B3954;'>© 2025 Health Checker 365 | Your Professional Clinical Assistant 🩺</p>", unsafe_allow_html=True)
+# -----------------------------
+# CALCULATORS MODULE
+# -----------------------------
+elif choice == "Calculators":
+    st.subheader("Clinical & Pharmaceutical Calculators")
+
+    # BMI & BSA
+    st.markdown("### BMI & BSA Calculator")
+    weight = st.number_input("Weight (kg)", min_value=0.0, value=70.0)
+    height = st.number_input("Height (cm)", min_value=0.0, value=175.0)
+    st.write("BMI:", calculate_bmi(weight, height))
+    st.write("BSA:", calculate_bsa(weight, height))
+
+    # GFR & Dose Adjustment
+    st.markdown("### GFR & Dose Adjustment")
+    age = st.number_input("Age (years)", min_value=0, value=50)
+    serum_creatinine = st.number_input("Serum Creatinine (mg/dl)", min_value=0.0, value=1.0)
+    gender = st.selectbox("Gender", ["Male", "Female"])
+    gfr = calculate_gfr(age, weight, serum_creatinine, gender)
+    st.write("Estimated GFR:", gfr)
+    base_dose = st.number_input("Base Dose (mg)", min_value=0.0, value=500.0)
+    adjusted_dose = calculate_dose(base_dose, gfr)
+    st.write("Adjusted Dose:", adjusted_dose)
+
+    # IV Drip Rate
+    st.markdown("### IV Drip Rate Calculator")
+    volume = st.number_input("IV Volume (ml)", min_value=0.0, value=500.0)
+    time = st.number_input("Time (hours)", min_value=0.1, value=4.0)
+    st.write("IV Rate (ml/hr):", calculate_iv_rate(volume, time))
+
+# -----------------------------
+# LAB INTERPRETATION
+# -----------------------------
+elif choice == "Lab Interpretation":
+    lab_module_ui()  # Streamlit-ready lab module UI
+
+# -----------------------------
+# Footer / Info
+# -----------------------------
+st.sidebar.markdown("---")
+st.sidebar.markdown("HealthChecker 360 | AI Medical Assistant | v1.0")
+st.sidebar.markdown("Developed for: Doctors, Pharmacists, Students, Patients")
