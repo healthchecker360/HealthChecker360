@@ -4,6 +4,8 @@ from modules.drug_module import drug_module_ui
 from modules.lab import lab_module_ui
 from modules.calculators import calculators_ui
 from config import DEBUG
+from modules.drug_module import drug_module_ui
+from config import DRUG_DB_PATH, DEBUG
 
 # ------------------------------
 # Page Config
