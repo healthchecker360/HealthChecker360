@@ -1,44 +1,46 @@
 import streamlit as st
 from modules.ai_engine import generate_clinical_answer, text_to_pdf, text_to_speech
+from config import TEMP_PATH, DEBUG
 
 # ------------------------------
-# CHAT DIAGNOSIS MODULE
+# Chat / Diagnosis module
 # ------------------------------
 def chat_diagnosis_module():
-    st.title("HealthChecker360 - Symptom Checker / Diagnosis")
-    st.write("Enter your symptoms or medical query to get relevant information.")
+    st.title("HealthChecker360 - Medical Query Assistant")
+    st.markdown(
+        "Enter your medical query below. The app will provide evidence-based answers "
+        "from your uploaded medical documents or fallback to online resources if needed."
+    )
 
-    user_query = st.text_area("Enter your medical query:")
+    user_query = st.text_input("Enter your medical query:")
 
-    if st.button("Get Answer"):
-        if not user_query.strip():
-            st.warning("Please enter a query first!")
-            return
-
-        # Generate clinical answer using RAG
-        with st.spinner("Fetching relevant medical information..."):
+    if st.button("Get Answer") and user_query.strip():
+        with st.spinner("Generating answer..."):
             answer = generate_clinical_answer(user_query)
         
-        st.subheader("Clinical Answer")
+        # Display answer
+        st.subheader("Answer:")
         st.write(answer)
 
-        # ------------------------------
-        # PDF Download
-        # ------------------------------
+        # Option to download PDF
         if st.button("Download as PDF"):
-            pdf_file = text_to_pdf(answer, filename="clinical_answer.pdf")
-            with open(pdf_file, "rb") as f:
-                st.download_button(
-                    label="Download PDF",
-                    data=f,
-                    file_name="clinical_answer.pdf",
-                    mime="application/pdf"
-                )
+            pdf_file = text_to_pdf(answer, filename=f"{user_query[:20]}.pdf")
+            st.success(f"PDF saved at: {pdf_file}")
+            st.download_button(
+                label="Download PDF",
+                data=open(pdf_file, "rb").read(),
+                file_name=f"{user_query[:20]}.pdf",
+                mime="application/pdf"
+            )
 
-        # ------------------------------
-        # Audio Download
-        # ------------------------------
-        if st.button("Listen to Answer"):
-            audio_file = text_to_speech(answer, filename="clinical_answer.mp3")
-            audio_bytes = open(audio_file, "rb").read()
-            st.audio(audio_bytes, format="audio/mp3")
+        # Option to listen as audio
+        if st.button("Listen Answer"):
+            audio_file = text_to_speech(answer, filename=f"{user_query[:20]}.mp3")
+            st.success(f"Audio generated at: {audio_file}")
+            st.audio(audio_file)
+
+# ------------------------------
+# For direct run
+# ------------------------------
+if __name__ == "__main__":
+    chat_diagnosis_module()
