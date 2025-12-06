@@ -1,59 +1,54 @@
-import os
-import faiss
+# modules/rag_engine.py
 import pickle
-import numpy as np
-from sentence_transformers import SentenceTransformer
+from pathlib import Path
+import faiss
+from config import VECTOR_PATH, DEBUG
 
 # ------------------------------
-# Paths
-# ------------------------------
-VECTOR_FOLDER = "vector_store"
-INDEX_FILE = os.path.join(VECTOR_FOLDER, "index.faiss")
-CHUNKS_FILE = os.path.join(VECTOR_FOLDER, "chunks.pkl")
-
-# ------------------------------
-# Embedding Model
-# ------------------------------
-EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-
-# ------------------------------
-# Load Vector Store
+# Load FAISS vector store
 # ------------------------------
 def load_vector_store():
     """
-    Loads FAISS index and stored text chunks.
-    Raises an error if files are missing.
+    Load FAISS index and chunks. Returns (index, chunks) or (None, []) if fails.
     """
-    if not os.path.exists(INDEX_FILE) or not os.path.exists(CHUNKS_FILE):
-        raise FileNotFoundError(
-            "FAISS index or chunks.pkl not found in vector_store/. "
-            "Please run build_faiss.py or upload the required files."
-        )
+    INDEX_FILE = VECTOR_PATH / "faiss_index.bin"
+    CHUNKS_FILE = VECTOR_PATH / "chunks.pkl"
 
-    index = faiss.read_index(INDEX_FILE)
+    if not INDEX_FILE.exists() or not CHUNKS_FILE.exists():
+        if DEBUG:
+            print("[DEBUG] FAISS index or chunks file missing.")
+        return None, []
 
-    with open(CHUNKS_FILE, "rb") as f:
-        chunks = pickle.load(f)
-
-    return index, chunks
+    try:
+        index = faiss.read_index(str(INDEX_FILE))
+        with open(CHUNKS_FILE, "rb") as f:
+            chunks = pickle.load(f)
+        return index, chunks
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] Error loading FAISS index: {e}")
+        return None, []
 
 # ------------------------------
-# Retrieve Relevant Chunks
+# Retrieve relevant chunks from FAISS
 # ------------------------------
 def retrieve_relevant_chunks(query, top_k=5):
     """
-    Retrieves top-K relevant document chunks based on semantic similarity.
+    Query FAISS vector store to retrieve most relevant document chunks.
     """
     index, chunks = load_vector_store()
+    if index is None or not chunks:
+        return []  # FAISS not available, fallback needed
 
-    query_emb = EMBED_MODEL.encode([query])
-    query_emb = np.array(query_emb).astype("float32")
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    distances, indices = index.search(query_emb, top_k)
-
-    relevant = []
-    for idx in indices[0]:
-        if idx < len(chunks):
-            relevant.append(chunks[idx])
-
-    return relevant
+    query_vector = model.encode([query])
+    try:
+        D, I = index.search(query_vector, top_k)
+        retrieved_chunks = [chunks[i] for i in I[0] if i < len(chunks)]
+        return retrieved_chunks
+    except Exception as e:
+        if DEBUG:
+            print(f"[DEBUG] FAISS search failed: {e}")
+        return []
