@@ -1,7 +1,12 @@
 import streamlit as st
-from .config import DRUG_DB_PATH
 import json
 import os
+import sys
+
+# Add parent folder to path
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from config import DRUG_DB_PATH
 
 def drug_module_ui():
     st.write("Drug Module")
@@ -11,3 +16,4 @@ def drug_module_ui():
         st.json(drugs)
     else:
         st.write("Drug database not found.")
+
