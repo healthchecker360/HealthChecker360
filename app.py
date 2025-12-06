@@ -66,9 +66,17 @@ if menu == "Home":
 # ------------------------------
 # Drug Info Module
 # ------------------------------
-elif menu == "Drug Info":
-    st.title("💊 Drug Information")
-    drug_module_ui()
+import streamlit as st
+
+st.header("💊 Drug Information")
+
+# Input field for drug name
+drug_name = st.text_input("Enter Drug Name:")
+
+# Button to fetch drug info
+if st.button("Get Drug Info") and drug_name:
+    result = drug_module_ui(drug_name)  # Pass the input to the function
+    st.markdown(result)
 
 # ------------------------------
 # Lab Interpretation Module
