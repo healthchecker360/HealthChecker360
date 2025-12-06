@@ -14,7 +14,13 @@ def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf.add_page()
     pdf.set_font("Arial", size=12)
     for line in text.split("\n"):
-        pdf.multi_cell(0, 8, line)
+        try:
+            # ensure text is ASCII-safe for FPDF
+            pdf.multi_cell(0, 8, line.encode("latin-1", "replace").decode("latin-1"))
+        except Exception as e:
+            if DEBUG:
+                print(f"[DEBUG] PDF encoding error: {e}")
+            pdf.multi_cell(0, 8, line)
     pdf.output(str(pdf_file))
     return str(pdf_file)
 
@@ -35,7 +41,7 @@ def query_gemini(query: str) -> str:
     headers = {"Authorization": f"Bearer {GOOGLE_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=20)
         response.raise_for_status()
         result = response.json()
         return result['candidates'][0]['content']
@@ -54,7 +60,7 @@ def query_groq(query: str) -> str:
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=20)
         response.raise_for_status()
         result = response.json()
         return result.get('text', '')
@@ -67,11 +73,13 @@ def query_groq(query: str) -> str:
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
     answer = ""
 
-    # Step 1: Try local FAISS
+    # Step 1: Try local FAISS retrieval
     try:
         chunks = retrieve_relevant_chunks(query, top_k=top_k)
         if chunks:
             answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
+            if DEBUG:
+                print(f"[DEBUG] Retrieved {len(chunks)} chunks from FAISS.")
     except Exception as e:
         if DEBUG:
             print(f"[DEBUG] FAISS retrieval skipped: {e}")
