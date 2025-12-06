@@ -10,6 +10,7 @@ def chat_diagnosis_module():
     from modules.rag_engine import retrieve_relevant_chunks
 
     st.header("🩺 Clinical Diagnosis Assistant")
+
     user_query = st.text_input("Enter your medical query:")
 
     if st.button("Get Clinical Answer") and user_query:
@@ -21,6 +22,7 @@ def chat_diagnosis_module():
 
         st.subheader("Clinical Answer:")
         st.markdown(answer)
+
 
 
     # Text input
