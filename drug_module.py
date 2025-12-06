@@ -1,103 +1,89 @@
 import json
 import os
-from ai_engine import generate_clinical_answer, text_to_speech, text_to_pdf
+import streamlit as st
+from config import DRUG_DB_PATH
 
-# ------------------------------
-# Drug Database Path
-# ------------------------------
-DRUG_DB_PATH = "medical_drug_db.json"
-
-# ------------------------------
-# Sample Drug Database
-# ------------------------------
-sample_drug_db = {
-    "Paracetamol": {
-        "Dose": "500-1000 mg every 4-6 hours, max 4 g/day",
-        "MOA": "Inhibits prostaglandin synthesis in CNS; analgesic and antipyretic effect",
-        "Warnings": "Liver disease, alcohol use, hypersensitivity",
-        "Side_effects": "Rare: rash, thrombocytopenia, hepatotoxicity in overdose",
-        "Formulations": "Tablet, suspension, IV"
-    },
-    "Ibuprofen": {
-        "Dose": "200-400 mg every 6-8 hours, max 1200 mg/day OTC",
-        "MOA": "Non-selective COX inhibitor; reduces prostaglandin synthesis",
-        "Warnings": "GI bleeding, renal impairment, hypersensitivity",
-        "Side_effects": "Dyspepsia, nausea, headache, rash",
-        "Formulations": "Tablet, suspension, IV"
-    }
-}
-
-# Save sample DB if not exists
-if not os.path.exists(DRUG_DB_PATH):
-    with open(DRUG_DB_PATH, "w") as f:
-        json.dump(sample_drug_db, f, indent=4)
-
-# ------------------------------
+# -----------------------------
 # Load Drug Database
-# ------------------------------
-def load_drug_db():
+# -----------------------------
+@st.cache_data
+def load_drug_database():
+    """Load drug data from JSON"""
+    if not os.path.exists(DRUG_DB_PATH):
+        st.warning(f"Drug database file not found: {DRUG_DB_PATH}")
+        return {}
     with open(DRUG_DB_PATH, "r") as f:
         return json.load(f)
 
-# ------------------------------
-# Retrieve Drug Info
-# ------------------------------
-def get_drug_info(drug_name, use_llm=False):
-    """
-    Retrieve concise drug monograph
-    - First check internal DB
-    - If not found and use_llm=True, call LLM
-    """
-    db = load_drug_db()
-    drug_name_cap = drug_name.capitalize()
 
-    if drug_name_cap in db:
-        info = db[drug_name_cap]
-        monograph = (
-            f"Drug: {drug_name_cap}\n"
-            f"Dose: {info['Dose']}\n"
-            f"MOA: {info['MOA']}\n"
-            f"Warnings: {info['Warnings']}\n"
-            f"Side effects: {info['Side_effects']}\n"
-            f"Formulations: {info['Formulations']}"
-        )
-        return monograph
-    elif use_llm:
-        prompt = f"Provide a concise professional drug monograph for {drug_name}: Dose, MOA, Warnings, Side effects, Formulations."
-        answer = generate_clinical_answer(prompt, engine="gemini")
-        return answer
-    else:
-        return f"[INFO] Drug '{drug_name}' not found in internal DB."
+# -----------------------------
+# Get Drug Info
+# -----------------------------
+def get_drug_info(drug_name: str):
+    db = load_drug_database()
+    for key, value in db.items():
+        if key.lower() == drug_name.lower():
+            return value
+    return None
 
-# ------------------------------
-# Optional: Streamlit Interface
-# ------------------------------
-def drug_module_ui(st):
+
+# -----------------------------
+# Search Drugs
+# -----------------------------
+def search_drugs(keyword: str):
+    db = load_drug_database()
+    keyword = keyword.lower()
+    matches = []
+    for key, value in db.items():
+        if (keyword in key.lower() 
+            or any(keyword in b.lower() for b in value.get("brand_names", []))
+            or any(keyword in f.lower() for f in value.get("formulations", []))):
+            matches.append(key)
+    return matches
+
+
+# -----------------------------
+# Streamlit UI
+# -----------------------------
+def drug_module_ui():
     st.header("💊 Drug Information Module")
+    query = st.text_input("Enter drug name or keyword")
+    if not query:
+        return
 
-    drug_name = st.text_input("Enter drug name:")
-    use_llm = st.checkbox("Use AI for unknown drugs?", value=True)
+    matches = search_drugs(query)
+    if not matches:
+        st.info(f"No drugs found for '{query}'")
+        return
 
-    if st.button("Get Drug Info") and drug_name:
-        with st.spinner("Fetching drug info..."):
-            info = get_drug_info(drug_name, use_llm=use_llm)
+    st.write(f"Found {len(matches)} drug(s): {', '.join(matches)}")
 
-        st.subheader("✅ Drug Monograph")
-        st.text_area("Monograph", value=info, height=250)
+    for drug in matches:
+        info = get_drug_info(drug)
+        if info:
+            st.subheader(drug)
+            st.write("**Brand Names:**", ", ".join(info.get("brand_names", [])))
+            st.write("**Formulations:**", ", ".join(info.get("formulations", [])))
+            st.write("**MOA:**", info.get("moa", "N/A"))
+            st.write("**Pharmacodynamics:**", info.get("pharmacodynamics", "N/A"))
+            st.write("**Pharmacokinetics:**", info.get("pharmacokinetics", "N/A"))
+            st.write("**Dose:**", info.get("dose", "N/A"))
+            st.write("**Adjustments:**", info.get("adjustments", "N/A"))
+            st.write("**Side Effects:**", ", ".join(info.get("side_effects", [])))
+            st.write("**Interactions:**", ", ".join(info.get("interactions", [])))
+            st.write("**Contraindications:**", ", ".join(info.get("contraindications", [])))
+            st.write("**Pregnancy/Lactation:**", info.get("pregnancy_lactation", "N/A"))
+            st.write("**Max Daily Dose:**", info.get("max_dose", "N/A"))
+        else:
+            st.warning(f"No data found for {drug}")
 
-        # Optional TTS
-        tts_file = text_to_speech(info)
-        st.audio(tts_file, format="audio/mp3")
 
-        # Optional PDF
-        pdf_file = text_to_pdf(info)
-        with open(pdf_file, "rb") as f:
-            st.download_button("Download PDF", f, file_name=f"{drug_name}_monograph.pdf", mime="application/pdf")
-
-
-# ------------------------------
-# Example Usage
-# ------------------------------
+# -----------------------------
+# Optional CLI fallback
+# -----------------------------
 if __name__ == "__main__":
-    import streamlit as st
-    drug_module_ui(st)
+    import sys
+    st = sys.modules.get("streamlit")  # For CLI testing
+    if not st:
+        from pprint import pprint as st
+    drug_module_ui()
