@@ -4,6 +4,7 @@ import pickle
 from sentence_transformers import SentenceTransformer
 import faiss
 
+# Add root folder to path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import VECTOR_STORE_PATH
 
@@ -14,10 +15,14 @@ def load_vector_store():
     index_file = os.path.join(VECTOR_STORE_PATH, "faiss_index.bin")
 
     if not os.path.exists(chunks_file) or not os.path.exists(index_file):
-        raise FileNotFoundError("FAISS index or chunks file not found. Run build_faiss.py first.")
+        raise FileNotFoundError("FAISS index or chunks file not found! Run build_faiss.py first.")
 
-    with open(chunks_file, "rb") as f:
-        chunks = pickle.load(f)
+    # Safe loading with protocol compatibility
+    try:
+        with open(chunks_file, "rb") as f:
+            chunks = pickle.load(f)
+    except Exception as e:
+        raise RuntimeError(f"Error loading chunks.pkl: {e}")
 
     index = faiss.read_index(index_file)
     return index, chunks
