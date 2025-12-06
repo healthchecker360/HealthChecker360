@@ -17,49 +17,67 @@ st.set_page_config(
 )
 
 # ------------------------------
-# Professional Medical UI Styling
+# Professional & Clear Clinical UI Styling
 # ------------------------------
 st.markdown(
     """
     <style>
-        /* Main Background */
+        /* App Background */
         .stApp {
-            background-color: #ffffff !important;
+            background-color: #f7f9fc !important; /* very light grey-blue */
         }
 
-        /* Titles */
-        h1, h2, h3, h4 {
-            color: #043672 !important;     /* Medical navy blue */
+        /* Main Title Colors */
+        h1, h2, h3 {
+            color: #0B3D91 !important; /* deep medical blue */
         }
 
         /* Sidebar */
         section[data-testid="stSidebar"] {
-            background-color: #f0f4fa !important;  /* Light clinical blue */
+            background-color: #ffffff !important;
+            border-right: 1px solid #d3d7dd !important;
         }
 
-        /* Buttons */
-        .stButton>button {
-            background-color: #0a5dc2 !important;
-            color: white !important;
-            border-radius: 6px;
-            padding: 8px 18px;
-            font-size: 15px;
-            border: none;
+        /* Sidebar labels */
+        section[data-testid="stSidebar"] * {
+            color: #0B3D91 !important;
+            font-weight: 600;
         }
 
-        .stButton>button:hover {
-            background-color: #074a99 !important;
-            color: #e9f1ff !important;
-        }
-
-        /* Inputs */
-        .stTextInput input, textarea, .stTextArea textarea {
-            border: 1px solid #aac6e8 !important;
+        /* Text Inputs */
+        .stTextInput input,
+        .stTextArea textarea {
+            background-color: #ffffff !important;
+            color: #1f1f1f !important;
+            border: 1px solid #b8c4ce !important;
+            border-radius: 6px !important;
         }
 
         /* Radio Buttons */
         div[role="radiogroup"] label {
-            color: #043672 !important;
+            color: #0B3D91 !important;
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .stButton>button {
+            background-color: #0B3D91 !important;
+            color: white !important;
+            border-radius: 6px !important;
+            padding: 10px 20px;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .stButton>button:hover {
+            background-color: #082c6c !important;
+        }
+
+        /* Markdown / normal text */
+        .stMarkdown p {
+            color: #2a2a2a !important;
+            font-size: 16px !important;
         }
     </style>
     """,
@@ -84,13 +102,8 @@ if menu == "Home":
 
     st.write(
         """
-        Quickly analyze symptoms, diseases, and clinical queries.
-        
-        The system uses:
-        - Local medical database (FAISS + embeddings)
-        - Online medical LLMs (Gemini / Groq)
-        
-        **Enter your symptoms or condition below.**
+        Enter symptoms or medical questions below.
+        The system uses a local medical database (FAISS) and online LLMs for accurate answers.
         """
     )
 
@@ -123,7 +136,7 @@ elif menu == "Calculators":
     calculators_ui()
 
 # ------------------------------
-# Debug Info
+# Debug Mode Indicator
 # ------------------------------
 if DEBUG:
     st.sidebar.write("**Debug Mode Enabled**")
