@@ -1,105 +1,104 @@
-import streamlit as st
-from ai_engine import text_to_speech, text_to_pdf
-import math
+import json
 import os
+from config import DRUG_DB_PATH
 
-# ------------------------------
-# Calculator Functions
-# ------------------------------
-def calculate_bmi(weight_kg, height_cm):
-    height_m = height_cm / 100
-    bmi = weight_kg / (height_m ** 2)
-    return round(bmi, 2)
-
-def calculate_bsa(weight_kg, height_cm):
-    # Mosteller formula
-    bsa = math.sqrt((height_cm * weight_kg) / 3600)
-    return round(bsa, 2)
-
-def calculate_gfr(creatinine_mg_dl, age, sex, race="non-black"):
+# -----------------------------
+# Load Drug Database
+# -----------------------------
+def load_drug_database():
     """
-    Simplified MDRD equation (ml/min/1.73m²)
+    Loads drug data from a JSON file.
+    Example JSON structure:
+    {
+        "Paracetamol": {
+            "brand_names": ["Tylenol", "Panadol"],
+            "formulations": ["Tablet 500mg", "Syrup 125mg/5ml"],
+            "moa": "Inhibits prostaglandin synthesis",
+            "pharmacodynamics": "Analgesic, antipyretic",
+            "pharmacokinetics": "Metabolized in liver, excreted in urine",
+            "dose": {"adult": "500-1000mg q6h", "child": "10-15mg/kg q6h"},
+            "adjustments": {"renal": "reduce dose if GFR < 30"},
+            "side_effects": ["Nausea", "Hepatotoxicity in overdose"],
+            "interactions": ["Warfarin", "Isoniazid"]
+        }
+    }
     """
-    gfr = 175 * (creatinine_mg_dl ** -1.154) * (age ** -0.203)
-    if sex.lower() == "female":
-        gfr *= 0.742
-    if race.lower() == "black":
-        gfr *= 1.212
-    return round(gfr, 2)
-
-# ------------------------------
-# Streamlit Calculators Module
-# ------------------------------
-def calculators_module_ui():
-    st.header("🧮 Clinical & Pharma Calculators")
-
-    calc_type = st.selectbox(
-        "Select Calculator:", 
-        ["BMI", "BSA", "GFR"]
-    )
-
-    result_text = ""
-
-    # ---------------- BMI ----------------
-    if calc_type == "BMI":
-        weight = st.number_input("Weight (kg):", min_value=1.0)
-        height = st.number_input("Height (cm):", min_value=1.0)
-        if st.button("Calculate BMI"):
-            bmi = calculate_bmi(weight, height)
-            result_text = (
-                f"BMI: {bmi}\n\n"
-                "Interpretation:\n"
-                "- Underweight: <18.5\n"
-                "- Normal: 18.5–24.9\n"
-                "- Overweight: 25–29.9\n"
-                "- Obese: ≥30"
-            )
-
-    # ---------------- BSA ----------------
-    elif calc_type == "BSA":
-        weight = st.number_input("Weight (kg):", min_value=1.0)
-        height = st.number_input("Height (cm):", min_value=1.0)
-        if st.button("Calculate BSA"):
-            bsa = calculate_bsa(weight, height)
-            result_text = f"BSA: {bsa} m² (Mosteller formula)"
-
-    # ---------------- GFR ----------------
-    elif calc_type == "GFR":
-        creatinine = st.number_input("Serum Creatinine (mg/dL):", min_value=0.1)
-        age = st.number_input("Age (years):", min_value=1)
-        sex = st.selectbox("Sex:", ["Male", "Female"])
-        race = st.selectbox("Race:", ["Non-Black", "Black"])
-        if st.button("Calculate GFR"):
-            gfr = calculate_gfr(creatinine, age, sex, race=race.lower())
-            result_text = f"Estimated GFR: {gfr} mL/min/1.73 m²"
-
-    # ---------------- Result Display + Optional TTS/PDF ----------------
-    if result_text:
-        st.subheader("✅ Result")
-        st.text_area("Output", value=result_text, height=200)
-
-        # Optional TTS
-        try:
-            tts_file = text_to_speech(result_text)
-            st.audio(tts_file, format="audio/mp3")
-        except Exception as e:
-            st.warning(f"⚠️ TTS Error: {e}")
-
-        # Optional PDF
-        try:
-            pdf_file = text_to_pdf(result_text)
-            with open(pdf_file, "rb") as f:
-                st.download_button(
-                    "Download PDF", f, 
-                    file_name=f"{calc_type}_result.pdf", 
-                    mime="application/pdf"
-                )
-        except Exception as e:
-            st.warning(f"⚠️ PDF Error: {e}")
+    if not os.path.exists(DRUG_DB_PATH):
+        print(f"⚠️ Drug database file not found: {DRUG_DB_PATH}")
+        return {}
+    with open(DRUG_DB_PATH, "r") as f:
+        data = json.load(f)
+    return data
 
 
-# ------------------------------
-# Example Usage (Standalone)
-# ------------------------------
-if __name__ == "__main__":
-    calculators_module_ui()
+# -----------------------------
+# Get Drug Info
+# -----------------------------
+def get_drug_info(drug_name: str):
+    """
+    Returns complete drug info for given name.
+    """
+    db = load_drug_database()
+    drug_name_lower = drug_name.lower()
+
+    for key, value in db.items():
+        if key.lower() == drug_name_lower:
+            return value
+    return f"No data found for drug: {drug_name}"
+
+
+# -----------------------------
+# Search Drugs by Keyword
+# -----------------------------
+def search_drugs(keyword: str):
+    """
+    Search drugs by keyword in name, brand, or formulation.
+    Returns list of matching drug names.
+    """
+    db = load_drug_database()
+    keyword_lower = keyword.lower()
+    matches = []
+
+    for key, value in db.items():
+        if (keyword_lower in key.lower()
+            or any(keyword_lower in b.lower() for b in value.get("brand_names", []))
+            or any(keyword_lower in f.lower() for f in value.get("formulations", []))):
+            matches.append(key)
+    return matches
+
+
+# -----------------------------
+# Example CLI Module
+# -----------------------------
+def drug_module_ui():
+    """
+    CLI-based interaction for drug info.
+    Can be replaced with Streamlit UI later.
+    """
+    print("=== Drug Information Module ===")
+    query = input("Enter drug name or keyword: ").strip()
+    if not query:
+        print("⚠️ Please enter a valid keyword!")
+        return
+
+    matches = search_drugs(query)
+    if not matches:
+        print("No drugs found matching:", query)
+        return
+
+    print(f"\nFound {len(matches)} drug(s): {', '.join(matches)}")
+    for drug in matches:
+        info = get_drug_info(drug)
+        if isinstance(info, dict):
+            print(f"\n--- {drug} ---")
+            print("Brand Names:", ", ".join(info.get("brand_names", [])))
+            print("Formulations:", ", ".join(info.get("formulations", [])))
+            print("MOA:", info.get("moa", "N/A"))
+            print("Pharmacodynamics:", info.get("pharmacodynamics", "N/A"))
+            print("Pharmacokinetics:", info.get("pharmacokinetics", "N/A"))
+            print("Dose:", info.get("dose", "N/A"))
+            print("Adjustments:", info.get("adjustments", "N/A"))
+            print("Side Effects:", ", ".join(info.get("side_effects", [])))
+            print("Interactions:", ", ".join(info.get("interactions", [])))
+        else:
+            print(info)
