@@ -1,35 +1,49 @@
 import os
 from dotenv import load_dotenv
 
-# ------------------------------
-# Load environment variables
-# ------------------------------
+# ----------------------------------
+# Load Environment Variables
+# ----------------------------------
 load_dotenv()
 
-# ------------------------------
-# API KEYS & URLs
-# ------------------------------
+# ----------------------------------
+# API Keys
+# ----------------------------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
-# Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_API_URL = os.getenv("GEMINI_API_URL", "https://api.gemini.com/v1/")
+# ----------------------------------
+# RAG / Vector Store Settings
+# ----------------------------------
+VECTOR_FOLDER = "vector_store"
+FAISS_INDEX_PATH = os.path.join(VECTOR_FOLDER, "faiss_index.bin")
+CHUNKS_PATH = os.path.join(VECTOR_FOLDER, "chunks.pkl")
+EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-# Groq API
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/v1/")
+# ----------------------------------
+# PDF / File Settings
+# ----------------------------------
+UPLOAD_FOLDER = "uploads"
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
 
-# ------------------------------
-# Text-to-Speech Settings
-# ------------------------------
-TTS_LANG = os.getenv("TTS_LANG", "en")   # default to English
+# ----------------------------------
+# Model Settings
+# ----------------------------------
+DEFAULT_ENGINE = "gemini"   # gemini / openai / local
+TOP_K = 5                    # number of retrieved chunks
 
-# ------------------------------
-# RAG / FAISS Settings
-# ------------------------------
-TOP_K = int(os.getenv("TOP_K", 5))  # Number of top relevant chunks to retrieve
+# ----------------------------------
+# UI Settings
+# ----------------------------------
+APP_NAME = "HealthChecker 360"
+APP_DESCRIPTION = "AI-powered Clinical Decision Support System"
 
-# ------------------------------
-# PDF & Vector Store Paths
-# ------------------------------
-PDF_FOLDER = os.getenv("PDF_FOLDER", "pdfs/")
-VECTOR_STORE_PATH = os.getenv("VECTOR_STORE_PATH", "vector_store/")
+# ----------------------------------
+# Lab Interpretation Settings
+# ----------------------------------
+LAB_REFERENCE = "labs_reference.json"  # future file
+
+# ----------------------------------
+# Safety Settings
+# ----------------------------------
+MAX_QUERY_LENGTH = 500
