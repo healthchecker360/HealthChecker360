@@ -7,23 +7,18 @@ import requests
 from config import VECTOR_PATH, TEMP_PATH, TOP_K, DEBUG, GOOGLE_API_KEY, GROQ_API_KEY
 from modules.rag_engine import retrieve_relevant_chunks
 
-# ------------------------------ PDF generation (Unicode safe) ------------------------------
+# ------------------------------ PDF generation ------------------------------
 def text_to_pdf(text: str, filename: str = "output.pdf") -> str:
     pdf_file = TEMP_PATH / filename
     pdf = FPDF()
     pdf.add_page()
-    
-    # Add a Unicode TrueType font (ensure this path exists on your system)
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"  # Common on Linux
-    if not os.path.exists(font_path):
-        raise FileNotFoundError(f"Font file not found: {font_path}")
-    
-    pdf.add_font('DejaVu', '', font_path, uni=True)
-    pdf.set_font("DejaVu", size=12)
-    
+    pdf.set_font("Arial", size=12)
     for line in text.split("\n"):
-        pdf.multi_cell(0, 8, line)
-    
+        try:
+            pdf.multi_cell(0, 8, line.encode('latin-1', 'replace').decode('latin-1'))
+        except Exception as e:
+            if DEBUG:
+                print(f"[DEBUG] PDF encoding error: {e}")
     pdf.output(str(pdf_file))
     return str(pdf_file)
 
@@ -38,13 +33,13 @@ def text_to_speech(text: str, filename: str = "output.mp3") -> str:
 def query_gemini(query: str) -> str:
     if not GOOGLE_API_KEY:
         if DEBUG:
-            print("[DEBUG] GEMINI_API_KEY missing in .env")
+            print("[DEBUG] GEMINI_API_KEY missing")
         return ""
     url = "https://api.generativelanguage.googleapis.com/v1beta2/models/text-bison-001:generateText"
     headers = {"Authorization": f"Bearer {GOOGLE_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "temperature": 0.2, "maxOutputTokens": 512}
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=20)
         response.raise_for_status()
         result = response.json()
         return result['candidates'][0]['content']
@@ -57,13 +52,13 @@ def query_gemini(query: str) -> str:
 def query_groq(query: str) -> str:
     if not GROQ_API_KEY:
         if DEBUG:
-            print("[DEBUG] GROQ_API_KEY missing in .env")
+            print("[DEBUG] GROQ_API_KEY missing")
         return ""
     url = "https://api.groq.ai/v1/generate"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     data = {"prompt": query, "max_tokens": 512, "temperature": 0.2}
     try:
-        response = requests.post(url, headers=headers, json=data)
+        response = requests.post(url, headers=headers, json=data, timeout=20)
         response.raise_for_status()
         result = response.json()
         return result.get('text', '')
@@ -76,26 +71,28 @@ def query_groq(query: str) -> str:
 def generate_clinical_answer(query: str, top_k: int = TOP_K) -> str:
     answer = ""
 
-    # Step 1: Try local FAISS
+    # Step 1: Local FAISS retrieval
     try:
         chunks = retrieve_relevant_chunks(query, top_k=top_k)
+        if DEBUG:
+            print(f"[DEBUG] FAISS retrieved {len(chunks)} chunks")
         if chunks:
             answer = "\n\n".join([f"• {chunk.strip()}" for chunk in chunks])
     except Exception as e:
         if DEBUG:
             print(f"[DEBUG] FAISS retrieval skipped: {e}")
 
-    # Step 2: Gemini API fallback
+    # Step 2: Gemini fallback
     if not answer.strip():
         answer = query_gemini(query)
         if DEBUG:
-            print("[DEBUG] Using Gemini API fallback")
+            print(f"[DEBUG] Gemini answer length: {len(answer)}")
 
-    # Step 3: Groq API fallback
+    # Step 3: Groq fallback
     if not answer.strip():
         answer = query_groq(query)
         if DEBUG:
-            print("[DEBUG] Using Groq API fallback")
+            print(f"[DEBUG] Groq answer length: {len(answer)}")
 
     # Step 4: Final fallback
     if not answer.strip():
