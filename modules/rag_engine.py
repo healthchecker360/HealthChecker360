@@ -1,103 +1,71 @@
-import os
 import pickle
-from pathlib import Path
 import faiss
 from sentence_transformers import SentenceTransformer
-from modules.config import DOCS_FOLDER, VECTOR_FOLDER, CHUNKS_FILE, FAISS_INDEX_FILE, TOP_K_CHUNKS
+from config import FAISS_INDEX_PATH, CHUNKS_FILE_PATH, CHUNK_SIZE, CHUNK_OVERLAP, TOP_K, DEBUG
 
 # ------------------------------
-# Load / Build FAISS Index
-# ------------------------------
-def build_vector_store():
-    """
-    Reads all docs (PDF, TXT, DOCX), creates chunks, embeddings, and saves FAISS index.
-    """
-    VECTOR_FOLDER.mkdir(exist_ok=True)
-
-    # Initialize model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-
-    chunks = []
-    embeddings = []
-
-    # Iterate through docs folder
-    for file_path in DOCS_FOLDER.glob("*"):
-        ext = file_path.suffix.lower()
-        text = ""
-        try:
-            if ext == ".txt":
-                text = file_path.read_text(encoding="utf-8")
-            elif ext == ".pdf":
-                from PyPDF2 import PdfReader
-                reader = PdfReader(str(file_path))
-                text = "\n".join([page.extract_text() or "" for page in reader.pages])
-            elif ext == ".docx":
-                import docx
-                doc = docx.Document(str(file_path))
-                text = "\n".join([para.text for para in doc.paragraphs])
-        except Exception as e:
-            print(f"Error reading {file_path.name}: {e}")
-            continue
-
-        # Split into chunks
-        text_chunks = split_text_into_chunks(text)
-        chunks.extend(text_chunks)
-        embeddings.extend(model.encode(text_chunks))
-
-    if not chunks:
-        raise ValueError("No text chunks found in docs folder!")
-
-    # Build FAISS index
-    dim = len(embeddings[0])
-    index = faiss.IndexFlatL2(dim)
-    index.add(np.array(embeddings).astype('float32'))
-
-    # Save index and chunks
-    faiss.write_index(index, str(FAISS_INDEX_FILE))
-    with open(CHUNKS_FILE, "wb") as f:
-        pickle.dump(chunks, f)
-
-    return index, chunks
-
-# ------------------------------
-# Split text into chunks
-# ------------------------------
-def split_text_into_chunks(text, chunk_size=500):
-    """
-    Splits large text into smaller chunks for vectorization
-    """
-    text = text.replace("\n", " ").strip()
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size):
-        chunks.append(" ".join(words[i:i + chunk_size]))
-    return chunks
-
-# ------------------------------
-# Load FAISS index
+# Load FAISS index and chunks
 # ------------------------------
 def load_vector_store():
     """
-    Loads FAISS index and chunks; if missing, instructs to build
+    Load FAISS index and chunks from vector_store.
+    Returns: index, chunks
     """
-    if FAISS_INDEX_FILE.exists() and CHUNKS_FILE.exists():
-        index = faiss.read_index(str(FAISS_INDEX_FILE))
-        with open(CHUNKS_FILE, "rb") as f:
-            chunks = pickle.load(f)
-        return index, chunks
-    else:
+    if not FAISS_INDEX_PATH.exists() or not CHUNKS_FILE_PATH.exists():
         raise FileNotFoundError("FAISS index or chunks file not found! Run build_faiss.py first.")
+    
+    # Load FAISS index
+    index = faiss.read_index(str(FAISS_INDEX_PATH))
+
+    # Load chunks
+    with open(CHUNKS_FILE_PATH, "rb") as f:
+        chunks = pickle.load(f)
+    
+    if DEBUG:
+        print(f"Loaded FAISS index with {index.ntotal} vectors and {len(chunks)} chunks.")
+    
+    return index, chunks
 
 # ------------------------------
-# Retrieve top-k relevant chunks
+# Retrieve relevant chunks
 # ------------------------------
-def retrieve_relevant_chunks(query, top_k=TOP_K_CHUNKS):
+def retrieve_relevant_chunks(query, top_k=TOP_K):
     """
-    Returns top-k chunks relevant to the query
+    Retrieve top_k chunks from FAISS most similar to query.
+    Returns: list of chunks
     """
     index, chunks = load_vector_store()
+    
+    # Create embedding for the query
     model = SentenceTransformer('all-MiniLM-L6-v2')
-    query_vec = model.encode([query])
-    D, I = index.search(query_vec.astype('float32'), top_k)
-    results = [chunks[i] for i in I[0] if i < len(chunks)]
+    query_vector = model.encode([query]).astype("float32")
+    
+    # Search
+    distances, indices = index.search(query_vector, top_k)
+    
+    # Get corresponding chunks
+    results = []
+    for idx in indices[0]:
+        if idx < len(chunks):
+            results.append(chunks[idx])
+    
+    if DEBUG:
+        print(f"Query: {query}")
+        print(f"Top {top_k} chunks retrieved:")
+        for r in results:
+            print(r[:200], "...")  # show first 200 chars
+
     return results
+
+# ------------------------------
+# Optional: Online fallback placeholder
+# ------------------------------
+def fallback_online_search(query):
+    """
+    Placeholder function for API fallback (Gemini, Groq, Medscape, etc.)
+    """
+    # Implement API calls here
+    # For example:
+    # response = gemini_api_call(query)
+    # return response["answer"]
+    return "No local match found. This feature will use online medical databases."
